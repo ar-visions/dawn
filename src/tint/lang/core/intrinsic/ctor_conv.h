@@ -39,7 +39,7 @@
 
 #include <cstdint>
 
-#include "src/tint/utils/traits/traits.h"
+#include "src/tint/utils/rtti/traits.h"
 
 namespace tint::core::intrinsic {
 
@@ -63,6 +63,9 @@ enum class CtorConv : uint8_t {
     kMat4x2,
     kMat4x3,
     kMat4x4,
+    kSubgroup_matrix_left,
+    kSubgroup_matrix_right,
+    kSubgroup_matrix_result,
     kNone,
 };
 

@@ -27,6 +27,8 @@
 
 #include <vector>
 
+#include "absl/types/span.h"  // TODO(343500108): Use std::span when we have C++20.
+#include "dawn/common/StringViewUtils.h"
 #include "dawn/wire/SupportedFeatures.h"
 #include "dawn/wire/WireResult.h"
 #include "dawn/wire/server/ObjectStorage.h"
@@ -56,12 +58,12 @@ WireResult Server::DoAdapterRequestDevice(Known<WGPUAdapter> adapter,
     deviceLostUserdata->future = deviceLostFuture;
 
     WGPUDeviceDescriptor desc = *descriptor;
-    desc.deviceLostCallbackInfo2 = {nullptr, WGPUCallbackMode_AllowProcessEvents,
+    desc.deviceLostCallbackInfo2 = {nullptr, WGPUCallbackMode_AllowSpontaneous,
                                     ForwardToServer2<&Server::OnDeviceLost>,
                                     deviceLostUserdata.release(), nullptr};
     desc.uncapturedErrorCallbackInfo2 = {
         nullptr,
-        [](WGPUDevice const*, WGPUErrorType type, const char* message, void*, void* userdata) {
+        [](WGPUDevice const*, WGPUErrorType type, WGPUStringView message, void*, void* userdata) {
             DeviceInfo* info = static_cast<DeviceInfo*>(userdata);
             info->server->OnUncapturedError(info->self, type, message);
         },
@@ -83,7 +85,7 @@ WireResult Server::DoAdapterRequestDevice(Known<WGPUAdapter> adapter,
 void Server::OnRequestDeviceCallback(RequestDeviceUserdata* data,
                                      WGPURequestDeviceStatus status,
                                      WGPUDevice device,
-                                     const char* message) {
+                                     WGPUStringView message) {
     ReturnAdapterRequestDeviceCallbackCmd cmd = {};
     cmd.eventManager = data->eventManager;
     cmd.future = data->future;
@@ -96,37 +98,50 @@ void Server::OnRequestDeviceCallback(RequestDeviceUserdata* data,
         return;
     }
 
-    std::vector<WGPUFeatureName> features;
-
-    size_t featuresCount = mProcs.deviceEnumerateFeatures(device, nullptr);
-    features.resize(featuresCount);
-    mProcs.deviceEnumerateFeatures(device, features.data());
-
     // The client should only be able to request supported features, so all enumerated
     // features that were enabled must also be supported by the wire.
     // Note: We fail the callback here, instead of immediately upon receiving
     // the request to preserve callback ordering.
-    for (WGPUFeatureName f : features) {
-        if (!IsFeatureSupported(f)) {
+    FreeMembers<WGPUSupportedFeatures> supportedFeatures(mProcs);
+    mProcs.deviceGetFeatures(device, &supportedFeatures);
+    absl::Span<const WGPUFeatureName> features(supportedFeatures.features,
+                                               supportedFeatures.featureCount);
+    for (WGPUFeatureName feature : features) {
+        if (!IsFeatureSupported(feature)) {
             // Release the device.
             mProcs.deviceRelease(device);
             device = nullptr;
 
             cmd.status = WGPURequestDeviceStatus_Error;
-            cmd.message = "Requested feature not supported.";
+            cmd.message = ToOutputStringView("Requested feature not supported.");
             SerializeCommand(cmd);
             return;
         }
     }
-
     cmd.featuresCount = features.size();
     cmd.features = features.data();
 
+    // Query and report the adapter limits, including DawnExperimentalSubgroupLimits,
+    // DawnExperimentalImmediateDataLimits and DawnTexelCopyBufferRowAlignmentLimits.
+    // Reporting to client.
     WGPUSupportedLimits limits = {};
-    // Also query the DawnExperimentalSubgroupLimits and report to client.
+
+    // Chained DawnExperimentalSubgroupLimits.
+    // TODO(crbug.com/354751907) Remove this, as it is now in AdapterInfo.
     WGPUDawnExperimentalSubgroupLimits experimentalSubgroupLimits = {};
     experimentalSubgroupLimits.chain.sType = WGPUSType_DawnExperimentalSubgroupLimits;
     limits.nextInChain = &experimentalSubgroupLimits.chain;
+
+    // Chained DawnExperimentalImmediateDataLimits.
+    WGPUDawnExperimentalImmediateDataLimits experimentalImmediateDataLimits = {};
+    experimentalImmediateDataLimits.chain.sType = WGPUSType_DawnExperimentalImmediateDataLimits;
+    experimentalSubgroupLimits.chain.next = &experimentalImmediateDataLimits.chain;
+
+    // Chained DawnTexelCopyBufferRowAlignmentLimits.
+    WGPUDawnTexelCopyBufferRowAlignmentLimits texelCopyBufferRowAlignmentLimits = {};
+    texelCopyBufferRowAlignmentLimits.chain.sType = WGPUSType_DawnTexelCopyBufferRowAlignmentLimits;
+    experimentalImmediateDataLimits.chain.next = &texelCopyBufferRowAlignmentLimits.chain;
+
     mProcs.deviceGetLimits(device, &limits);
     cmd.limits = &limits;
 
@@ -134,7 +149,7 @@ void Server::OnRequestDeviceCallback(RequestDeviceUserdata* data,
     Known<WGPUDevice> reservation;
     if (FillReservation(data->deviceObjectId, device, &reservation) == WireResult::FatalError) {
         cmd.status = WGPURequestDeviceStatus_Unknown;
-        cmd.message = "Destroyed before request was fulfilled.";
+        cmd.message = ToOutputStringView("Destroyed before request was fulfilled.");
         SerializeCommand(cmd);
         return;
     }

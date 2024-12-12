@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 struct S {
   float f;
@@ -41,5 +41,7 @@ void frag_main(frag_main_inputs inputs) {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x000002425550C030(5,3-11): error X3000: unrecognized identifier 'float16_t'
+<scrubbed_path>(5,3-11): error X3000: unrecognized identifier 'float16_t'
 
+
+tint executable returned error: exit status 1

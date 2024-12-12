@@ -5,9 +5,8 @@ struct S {
 
 
 uint f() {
-  S v[2] = (S[2])0;
-  S a[2] = v;
-  return a[1].n[1];
+  S a[2] = (S[2])0;
+  return a[1u].n[1u];
 }
 
 [numthreads(1, 1, 1)]

@@ -33,6 +33,7 @@
 
 #include "dawn/common/Assert.h"
 #include "dawn/common/Log.h"
+#include "dawn/common/StringViewUtils.h"
 #include "dawn/wire/client/ApiObjects_autogen.h"
 #include "dawn/wire/client/Client.h"
 #include "dawn/wire/client/EventManager.h"
@@ -53,11 +54,9 @@ class PopErrorScopeEvent final : public TrackedEvent {
 
     EventType GetType() override { return kType; }
 
-    WireResult ReadyHook(FutureID futureID, WGPUErrorType errorType, const char* message) {
+    WireResult ReadyHook(FutureID futureID, WGPUErrorType errorType, WGPUStringView message) {
         mType = errorType;
-        if (message != nullptr) {
-            mMessage = message;
-        }
+        mMessage = ToString(message);
         return WireResult::Success;
     }
 
@@ -65,12 +64,11 @@ class PopErrorScopeEvent final : public TrackedEvent {
     void CompleteImpl(FutureID futureID, EventCompletionType completionType) override {
         if (completionType == EventCompletionType::Shutdown) {
             mStatus = WGPUPopErrorScopeStatus_InstanceDropped;
-            mMessage = std::nullopt;
+            mMessage = "";
         }
-        void* userdata1 = mUserdata1.ExtractAsDangling();
-        void* userdata2 = mUserdata2.ExtractAsDangling();
         if (mCallback) {
-            mCallback(mStatus, mType, mMessage ? mMessage->c_str() : nullptr, userdata1, userdata2);
+            mCallback(mStatus, mType, ToOutputStringView(mMessage), mUserdata1.ExtractAsDangling(),
+                      mUserdata2.ExtractAsDangling());
         }
     }
 
@@ -80,7 +78,7 @@ class PopErrorScopeEvent final : public TrackedEvent {
 
     WGPUPopErrorScopeStatus mStatus = WGPUPopErrorScopeStatus_Success;
     WGPUErrorType mType = WGPUErrorType_Unknown;
-    std::optional<std::string> mMessage;
+    std::string mMessage;
 };
 
 template <typename PipelineT, EventType Type, typename CallbackInfoT>
@@ -105,12 +103,10 @@ class CreatePipelineEventBase : public TrackedEvent {
 
     WireResult ReadyHook(FutureID futureID,
                          WGPUCreatePipelineAsyncStatus status,
-                         const char* message) {
+                         WGPUStringView message) {
         DAWN_ASSERT(mPipeline != nullptr);
         mStatus = status;
-        if (message != nullptr) {
-            mMessage = message;
-        }
+        mMessage = ToString(message);
         return WireResult::Success;
     }
 
@@ -132,7 +128,7 @@ class CreatePipelineEventBase : public TrackedEvent {
                   mStatus == WGPUCreatePipelineAsyncStatus_Success
                       ? ReturnToAPI(std::move(mPipeline))
                       : nullptr,
-                  mMessage ? mMessage->c_str() : nullptr, userdata1, userdata2);
+                  ToOutputStringView(mMessage), userdata1, userdata2);
     }
 
     using Callback = decltype(std::declval<CallbackInfo>().callback);
@@ -140,10 +136,8 @@ class CreatePipelineEventBase : public TrackedEvent {
     raw_ptr<void> mUserdata1;
     raw_ptr<void> mUserdata2;
 
-    // Note that the message is optional because we want to return nullptr when it wasn't set
-    // instead of a pointer to an empty string.
     WGPUCreatePipelineAsyncStatus mStatus = WGPUCreatePipelineAsyncStatus_Success;
-    std::optional<std::string> mMessage;
+    std::string mMessage;
 
     Ref<Pipeline> mPipeline;
 };
@@ -157,42 +151,6 @@ using CreateRenderPipelineEvent =
                             EventType::CreateRenderPipeline,
                             WGPUCreateRenderPipelineAsyncCallbackInfo2>;
 
-void LegacyDeviceLostCallback(WGPUDevice const*,
-                              WGPUDeviceLostReason reason,
-                              char const* message,
-                              void* callback,
-                              void* userdata) {
-    if (callback == nullptr) {
-        return;
-    }
-    auto cb = reinterpret_cast<WGPUDeviceLostCallback>(callback);
-    cb(reason, message, userdata);
-}
-
-void LegacyDeviceLostCallback2(WGPUDevice const* device,
-                               WGPUDeviceLostReason reason,
-                               char const* message,
-                               void* callback,
-                               void* userdata) {
-    if (callback == nullptr) {
-        return;
-    }
-    auto cb = reinterpret_cast<WGPUDeviceLostCallbackNew>(callback);
-    cb(device, reason, message, userdata);
-}
-
-void LegacyUncapturedErrorCallback(WGPUDevice const*,
-                                   WGPUErrorType type,
-                                   const char* message,
-                                   void* callback,
-                                   void* userdata) {
-    if (callback == nullptr) {
-        return;
-    }
-    auto cb = reinterpret_cast<WGPUErrorCallback>(callback);
-    cb(type, message, userdata);
-}
-
 static constexpr WGPUUncapturedErrorCallbackInfo2 kEmptyUncapturedErrorCallbackInfo = {
     nullptr, nullptr, nullptr, nullptr};
 
@@ -203,22 +161,21 @@ class Device::DeviceLostEvent : public TrackedEvent {
     static constexpr EventType kType = EventType::DeviceLost;
 
     DeviceLostEvent(const WGPUDeviceLostCallbackInfo2& callbackInfo, Ref<Device> device)
-        : TrackedEvent(callbackInfo.mode), mDevice(std::move(device)) {
+        : TrackedEvent(callbackInfo.mode),
+          mCallback(callbackInfo.callback),
+          mUserdata1(callbackInfo.userdata1),
+          mUserdata2(callbackInfo.userdata2),
+          mDevice(std::move(device)) {
         DAWN_ASSERT(mDevice != nullptr);
-
-        mDevice->mDeviceLostInfo.callback = callbackInfo.callback;
-        mDevice->mDeviceLostInfo.userdata1 = callbackInfo.userdata1;
-        mDevice->mDeviceLostInfo.userdata2 = callbackInfo.userdata2;
     }
 
     EventType GetType() override { return kType; }
 
-    WireResult ReadyHook(FutureID futureID, WGPUDeviceLostReason reason, const char* message) {
-        mReason = reason;
-        if (message != nullptr) {
-            mMessage = message;
+    WireResult ReadyHook(FutureID futureID, WGPUDeviceLostReason reason, WGPUStringView message) {
+        if (mMessage.empty()) {
+            mReason = reason;
+            mMessage = ToString(message);
         }
-        mDevice->mDeviceLostInfo.futureID = kNullFutureID;
         return WireResult::Success;
     }
 
@@ -229,22 +186,27 @@ class Device::DeviceLostEvent : public TrackedEvent {
             mMessage = "A valid external Instance reference no longer exists.";
         }
 
-        void* userdata1 = mDevice->mDeviceLostInfo.userdata1.ExtractAsDangling();
-        void* userdata2 = mDevice->mDeviceLostInfo.userdata2.ExtractAsDangling();
+        // Some users may use the device lost callback to deallocate resources allocated for the
+        // uncaptured error callback, so reset the uncaptured error callback before calling the
+        // device lost callback.
+        mDevice->mUncapturedErrorCallbackInfo = kEmptyUncapturedErrorCallbackInfo;
 
-        if (mDevice->mDeviceLostInfo.callback != nullptr) {
+        void* userdata1 = mUserdata1.ExtractAsDangling();
+        void* userdata2 = mUserdata2.ExtractAsDangling();
+
+        if (mCallback != nullptr) {
             const auto device =
                 mReason != WGPUDeviceLostReason_FailedCreation ? ToAPI(mDevice.Get()) : nullptr;
-            mDevice->mDeviceLostInfo.callback(
-                &device, mReason, mMessage ? mMessage->c_str() : nullptr, userdata1, userdata2);
+            mCallback(&device, mReason, ToOutputStringView(mMessage), userdata1, userdata2);
         }
-        mDevice->mUncapturedErrorCallbackInfo = kEmptyUncapturedErrorCallbackInfo;
     }
 
+    WGPUDeviceLostCallback2 mCallback = nullptr;
+    raw_ptr<void> mUserdata1 = nullptr;
+    raw_ptr<void> mUserdata2 = nullptr;
+
     WGPUDeviceLostReason mReason;
-    // Note that the message is optional because we want to return nullptr when it wasn't set
-    // instead of a pointer to an empty string.
-    std::optional<std::string> mMessage;
+    std::string mMessage;
 
     // Strong reference to the device so that when we call the callback we can pass the device.
     Ref<Device> mDevice;
@@ -259,7 +221,7 @@ Device::Device(const ObjectBaseParams& params,
 #if defined(DAWN_ENABLE_ASSERTS)
     static constexpr WGPUDeviceLostCallbackInfo2 kDefaultDeviceLostCallbackInfo = {
         nullptr, WGPUCallbackMode_AllowSpontaneous,
-        [](WGPUDevice const*, WGPUDeviceLostReason, char const*, void*, void*) {
+        [](WGPUDevice const*, WGPUDeviceLostReason, WGPUStringView, void*, void*) {
             static bool calledOnce = false;
             if (!calledOnce) {
                 calledOnce = true;
@@ -271,7 +233,7 @@ Device::Device(const ObjectBaseParams& params,
         nullptr, nullptr};
     static constexpr WGPUUncapturedErrorCallbackInfo2 kDefaultUncapturedErrorCallbackInfo = {
         nullptr,
-        [](WGPUDevice const*, WGPUErrorType, char const*, void*, void*) {
+        [](WGPUDevice const*, WGPUErrorType, WGPUStringView, void*, void*) {
             static bool calledOnce = false;
             if (!calledOnce) {
                 calledOnce = true;
@@ -289,33 +251,14 @@ Device::Device(const ObjectBaseParams& params,
 #endif  // DAWN_ENABLE_ASSERTS
 
     WGPUDeviceLostCallbackInfo2 deviceLostCallbackInfo = kDefaultDeviceLostCallbackInfo;
-    if (descriptor != nullptr) {
-        if (descriptor->deviceLostCallbackInfo2.callback != nullptr) {
-            deviceLostCallbackInfo = descriptor->deviceLostCallbackInfo2;
-        } else if (descriptor->deviceLostCallbackInfo.callback != nullptr) {
-            auto& callbackInfo = descriptor->deviceLostCallbackInfo;
-            deviceLostCallbackInfo = {
-                callbackInfo.nextInChain, callbackInfo.mode, &LegacyDeviceLostCallback2,
-                reinterpret_cast<void*>(callbackInfo.callback), callbackInfo.userdata};
-        } else if (descriptor->deviceLostCallback != nullptr) {
-            deviceLostCallbackInfo = {nullptr, WGPUCallbackMode_AllowSpontaneous,
-                                      &LegacyDeviceLostCallback,
-                                      reinterpret_cast<void*>(descriptor->deviceLostCallback),
-                                      descriptor->deviceLostUserdata};
-        }
+    if (descriptor != nullptr && descriptor->deviceLostCallbackInfo2.callback != nullptr) {
+        deviceLostCallbackInfo = descriptor->deviceLostCallbackInfo2;
     }
     mDeviceLostInfo.event = std::make_unique<DeviceLostEvent>(deviceLostCallbackInfo, this);
 
     mUncapturedErrorCallbackInfo = kDefaultUncapturedErrorCallbackInfo;
-    if (descriptor != nullptr) {
-        if (descriptor->uncapturedErrorCallbackInfo2.callback != nullptr) {
-            mUncapturedErrorCallbackInfo = descriptor->uncapturedErrorCallbackInfo2;
-        } else if (descriptor->uncapturedErrorCallbackInfo.callback != nullptr) {
-            auto& callbackInfo = descriptor->uncapturedErrorCallbackInfo;
-            mUncapturedErrorCallbackInfo = {
-                callbackInfo.nextInChain, &LegacyUncapturedErrorCallback,
-                reinterpret_cast<void*>(callbackInfo.callback), callbackInfo.userdata};
-        }
+    if (descriptor != nullptr && descriptor->uncapturedErrorCallbackInfo2.callback != nullptr) {
+        mUncapturedErrorCallbackInfo = descriptor->uncapturedErrorCallbackInfo2;
     }
 }
 
@@ -329,7 +272,8 @@ bool Device::IsAlive() const {
 
 void Device::WillDropLastExternalRef() {
     if (IsRegistered()) {
-        HandleDeviceLost(WGPUDeviceLostReason_Destroyed, "Device was destroyed.");
+        HandleDeviceLost(WGPUDeviceLostReason_Destroyed,
+                         ToOutputStringView("Device was destroyed."));
     }
     Unregister();
 }
@@ -342,8 +286,12 @@ bool Device::HasFeature(WGPUFeatureName feature) const {
     return mLimitsAndFeatures.HasFeature(feature);
 }
 
-size_t Device::EnumerateFeatures(WGPUFeatureName* features) const {
-    return mLimitsAndFeatures.EnumerateFeatures(features);
+void Device::GetFeatures(WGPUSupportedFeatures* features) const {
+    mLimitsAndFeatures.ToSupportedFeatures(features);
+}
+
+WGPUStatus Device::GetAdapterInfo(WGPUAdapterInfo* adapterInfo) const {
+    return mAdapter->GetInfo(adapterInfo);
 }
 
 void Device::SetLimits(const WGPUSupportedLimits* limits) {
@@ -354,7 +302,7 @@ void Device::SetFeatures(const WGPUFeatureName* features, uint32_t featuresCount
     return mLimitsAndFeatures.SetFeatures(features, featuresCount);
 }
 
-void Device::HandleError(WGPUErrorType errorType, const char* message) {
+void Device::HandleError(WGPUErrorType errorType, WGPUStringView message) {
     if (mUncapturedErrorCallbackInfo.callback) {
         const auto device = ToAPI(this);
         mUncapturedErrorCallbackInfo.callback(&device, errorType, message,
@@ -363,39 +311,28 @@ void Device::HandleError(WGPUErrorType errorType, const char* message) {
     }
 }
 
-void Device::HandleLogging(WGPULoggingType loggingType, const char* message) {
+void Device::HandleLogging(WGPULoggingType loggingType, WGPUStringView message) {
     if (mLoggingCallback) {
         // Since client always run in single thread, calling the callback directly is safe.
         mLoggingCallback(loggingType, message, mLoggingUserdata);
     }
 }
 
-void Device::HandleDeviceLost(WGPUDeviceLostReason reason, const char* message) {
-    FutureID futureID = GetDeviceLostFuture().id;
-    if (futureID != kNullFutureID) {
-        DAWN_CHECK(GetEventManager().SetFutureReady<DeviceLostEvent>(futureID, reason, message) ==
-                   WireResult::Success);
-    }
+void Device::HandleDeviceLost(WGPUDeviceLostReason reason, WGPUStringView message) {
+    FutureID futureID = GetLostFuture().id;
+    DAWN_CHECK(GetEventManager().SetFutureReady<DeviceLostEvent>(futureID, reason, message) ==
+               WireResult::Success);
     mIsAlive = false;
 }
 
-WGPUFuture Device::GetDeviceLostFuture() {
+WGPUFuture Device::GetLostFuture() {
     // Lazily track the device lost event so that event ordering w.r.t RequestDevice is correct.
     if (mDeviceLostInfo.event != nullptr) {
-        auto [deviceLostFutureIDInternal, tracked] =
+        auto [deviceLostFutureIDInternal, _] =
             GetEventManager().TrackEvent(std::move(mDeviceLostInfo.event));
-        if (tracked) {
-            mDeviceLostInfo.futureID = deviceLostFutureIDInternal;
-        }
+        mDeviceLostInfo.futureID = deviceLostFutureIDInternal;
     }
     return {mDeviceLostInfo.futureID};
-}
-
-void Device::SetUncapturedErrorCallback(WGPUErrorCallback errorCallback, void* errorUserdata) {
-    if (mDeviceLostInfo.futureID != kNullFutureID) {
-        mUncapturedErrorCallbackInfo = {nullptr, &LegacyUncapturedErrorCallback,
-                                        reinterpret_cast<void*>(errorCallback), errorUserdata};
-    }
 }
 
 void Device::SetLoggingCallback(WGPULoggingCallback callback, void* userdata) {
@@ -403,27 +340,19 @@ void Device::SetLoggingCallback(WGPULoggingCallback callback, void* userdata) {
     mLoggingUserdata = userdata;
 }
 
-void Device::SetDeviceLostCallback(WGPUDeviceLostCallback callback, void* userdata) {
-    if (mDeviceLostInfo.futureID != kNullFutureID) {
-        mDeviceLostInfo.callback = &LegacyDeviceLostCallback;
-        mDeviceLostInfo.userdata1 = reinterpret_cast<void*>(callback);
-        mDeviceLostInfo.userdata2 = userdata;
-    }
-}
-
 WireResult Client::DoDeviceLostCallback(ObjectHandle eventManager,
                                         WGPUFuture future,
                                         WGPUDeviceLostReason reason,
-                                        char const* message) {
+                                        WGPUStringView message) {
     return GetEventManager(eventManager)
         .SetFutureReady<Device::DeviceLostEvent>(future.id, reason, message);
 }
 
 void Device::PopErrorScope(WGPUErrorCallback callback, void* userdata) {
-    static WGPUErrorCallback kDefaultCallback = [](WGPUErrorType, char const*, void*) {};
+    static WGPUErrorCallback kDefaultCallback = [](WGPUErrorType, WGPUStringView, void*) {};
 
     PopErrorScope2({nullptr, WGPUCallbackMode_AllowSpontaneous,
-                    [](WGPUPopErrorScopeStatus, WGPUErrorType type, char const* message,
+                    [](WGPUPopErrorScopeStatus, WGPUErrorType type, WGPUStringView message,
                        void* callback, void* userdata) {
                         auto cb = reinterpret_cast<WGPUErrorCallback>(callback);
                         cb(type, message, userdata);
@@ -435,7 +364,7 @@ void Device::PopErrorScope(WGPUErrorCallback callback, void* userdata) {
 WGPUFuture Device::PopErrorScopeF(const WGPUPopErrorScopeCallbackInfo& callbackInfo) {
     return PopErrorScope2({callbackInfo.nextInChain, callbackInfo.mode,
                            [](WGPUPopErrorScopeStatus status, WGPUErrorType type,
-                              char const* message, void* callback, void* userdata) {
+                              WGPUStringView message, void* callback, void* userdata) {
                                auto cb = reinterpret_cast<WGPUPopErrorScopeCallback>(callback);
                                cb(status, type, message, userdata);
                            },
@@ -461,12 +390,12 @@ WGPUFuture Device::PopErrorScope2(const WGPUPopErrorScopeCallbackInfo2& callback
 WireResult Client::DoDevicePopErrorScopeCallback(ObjectHandle eventManager,
                                                  WGPUFuture future,
                                                  WGPUErrorType errorType,
-                                                 const char* message) {
+                                                 WGPUStringView message) {
     return GetEventManager(eventManager)
         .SetFutureReady<PopErrorScopeEvent>(future.id, errorType, message);
 }
 
-void Device::InjectError(WGPUErrorType type, const char* message) {
+void Device::InjectError(WGPUErrorType type, WGPUStringView message) {
     DeviceInjectErrorCmd cmd;
     cmd.self = ToAPI(this);
     cmd.type = type;
@@ -538,7 +467,7 @@ void Device::CreateComputePipelineAsync(WGPUComputePipelineDescriptor const* des
     CreateComputePipelineAsync2(
         descriptor, {nullptr, WGPUCallbackMode_AllowSpontaneous,
                      [](WGPUCreatePipelineAsyncStatus status, WGPUComputePipeline pipeline,
-                        char const* message, void* callback, void* userdata) {
+                        WGPUStringView message, void* callback, void* userdata) {
                          auto cb =
                              reinterpret_cast<WGPUCreateComputePipelineAsyncCallback>(callback);
                          cb(status, pipeline, message, userdata);
@@ -552,7 +481,7 @@ WGPUFuture Device::CreateComputePipelineAsyncF(
     return CreateComputePipelineAsync2(
         descriptor, {callbackInfo.nextInChain, callbackInfo.mode,
                      [](WGPUCreatePipelineAsyncStatus status, WGPUComputePipeline pipeline,
-                        char const* message, void* callback, void* userdata) {
+                        WGPUStringView message, void* callback, void* userdata) {
                          auto cb =
                              reinterpret_cast<WGPUCreateComputePipelineAsyncCallback>(callback);
                          cb(status, pipeline, message, userdata);
@@ -570,7 +499,7 @@ WGPUFuture Device::CreateComputePipelineAsync2(
 WireResult Client::DoDeviceCreateComputePipelineAsyncCallback(ObjectHandle eventManager,
                                                               WGPUFuture future,
                                                               WGPUCreatePipelineAsyncStatus status,
-                                                              const char* message) {
+                                                              WGPUStringView message) {
     return GetEventManager(eventManager)
         .SetFutureReady<CreateComputePipelineEvent>(future.id, status, message);
 }
@@ -581,7 +510,7 @@ void Device::CreateRenderPipelineAsync(WGPURenderPipelineDescriptor const* descr
     CreateRenderPipelineAsync2(
         descriptor, {nullptr, WGPUCallbackMode_AllowSpontaneous,
                      [](WGPUCreatePipelineAsyncStatus status, WGPURenderPipeline pipeline,
-                        char const* message, void* callback, void* userdata) {
+                        WGPUStringView message, void* callback, void* userdata) {
                          auto cb =
                              reinterpret_cast<WGPUCreateRenderPipelineAsyncCallback>(callback);
                          cb(status, pipeline, message, userdata);
@@ -595,7 +524,7 @@ WGPUFuture Device::CreateRenderPipelineAsyncF(
     return CreateRenderPipelineAsync2(
         descriptor, {callbackInfo.nextInChain, callbackInfo.mode,
                      [](WGPUCreatePipelineAsyncStatus status, WGPURenderPipeline pipeline,
-                        char const* message, void* callback, void* userdata) {
+                        WGPUStringView message, void* callback, void* userdata) {
                          auto cb =
                              reinterpret_cast<WGPUCreateRenderPipelineAsyncCallback>(callback);
                          cb(status, pipeline, message, userdata);
@@ -613,7 +542,7 @@ WGPUFuture Device::CreateRenderPipelineAsync2(
 WireResult Client::DoDeviceCreateRenderPipelineAsyncCallback(ObjectHandle eventManager,
                                                              WGPUFuture future,
                                                              WGPUCreatePipelineAsyncStatus status,
-                                                             const char* message) {
+                                                             WGPUStringView message) {
     return GetEventManager(eventManager)
         .SetFutureReady<CreateRenderPipelineEvent>(future.id, status, message);
 }

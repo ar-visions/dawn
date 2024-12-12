@@ -79,9 +79,6 @@ struct State {
     /// A map from an integer vector type to a dot polyfill.
     Hashmap<const core::type::Vector*, core::ir::Function*, 4> integer_dot_polyfills{};
 
-    /// A map from an integer type to a packed 8-bit dot polyfill.
-    Hashmap<const core::type::Type*, core::ir::Function*, 2> packed_8bit_integer_dot_polyfills{};
-
     /// Process the module.
     void Process() {
         // Find the builtins that need replacing.
@@ -102,12 +99,13 @@ struct State {
                     case core::BuiltinFn::kAtomicXor:
                     case core::BuiltinFn::kDistance:
                     case core::BuiltinFn::kDot:
-                    case core::BuiltinFn::kDot4I8Packed:
-                    case core::BuiltinFn::kDot4U8Packed:
                     case core::BuiltinFn::kFrexp:
                     case core::BuiltinFn::kLength:
                     case core::BuiltinFn::kModf:
                     case core::BuiltinFn::kPack2X16Float:
+                    case core::BuiltinFn::kQuadSwapDiagonal:
+                    case core::BuiltinFn::kQuadSwapX:
+                    case core::BuiltinFn::kQuadSwapY:
                     case core::BuiltinFn::kQuantizeToF16:
                     case core::BuiltinFn::kSign:
                     case core::BuiltinFn::kTextureDimensions:
@@ -181,10 +179,6 @@ struct State {
                 case core::BuiltinFn::kDot:
                     Dot(builtin);
                     break;
-                case core::BuiltinFn::kDot4I8Packed:
-                case core::BuiltinFn::kDot4U8Packed:
-                    Dot4x8Packed(builtin);
-                    break;
                 case core::BuiltinFn::kFrexp:
                     Frexp(builtin);
                     break;
@@ -256,6 +250,17 @@ struct State {
                     ThreadgroupBarrier(builtin, BarrierType::kTexture);
                     break;
 
+                // QuadSwap builtins.
+                case core::BuiltinFn::kQuadSwapDiagonal:
+                    QuadSwap(builtin, 0b11);
+                    break;
+                case core::BuiltinFn::kQuadSwapX:
+                    QuadSwap(builtin, 0b01);
+                    break;
+                case core::BuiltinFn::kQuadSwapY:
+                    QuadSwap(builtin, 0b10);
+                    break;
+
                 // Pack/unpack builtins.
                 case core::BuiltinFn::kPack2X16Float:
                     Pack2x16Float(builtin);
@@ -274,8 +279,8 @@ struct State {
     /// @param builtin the builtin call instruction
     void AtomicCall(core::ir::CoreBuiltinCall* builtin, msl::BuiltinFn intrinsic) {
         auto args = Vector<core::ir::Value*, 4>{builtin->Args()};
-        args.Push(ir.allocators.values.Create<msl::ir::MemoryOrder>(
-            b.ConstantValue(u32(std::memory_order_relaxed))));
+        args.Push(
+            ir.CreateValue<msl::ir::MemoryOrder>(b.ConstantValue(u32(std::memory_order_relaxed))));
         auto* call = b.CallWithResult<msl::ir::BuiltinCall>(builtin->DetachResult(), intrinsic,
                                                             std::move(args));
         call->InsertBefore(builtin);
@@ -301,7 +306,7 @@ struct State {
             func->SetParams({ptr, cmp, val});
             b.Append(func->Block(), [&] {
                 auto* old_value = b.Var<function>("old_value", cmp)->Result(0);
-                auto* order = ir.allocators.values.Create<msl::ir::MemoryOrder>(
+                auto* order = ir.CreateValue<msl::ir::MemoryOrder>(
                     b.ConstantValue(u32(std::memory_order_relaxed)));
                 auto* call = b.Call<msl::ir::BuiltinCall>(
                     ty.bool_(), BuiltinFn::kAtomicCompareExchangeWeakExplicit,
@@ -348,7 +353,7 @@ struct State {
             auto* arg0 = builtin->Args()[0];
             auto* arg1 = builtin->Args()[1];
             auto* vec = arg0->Type()->As<core::type::Vector>();
-            if (vec->type()->is_integer_scalar()) {
+            if (vec->Type()->IsIntegerScalar()) {
                 // Calls to `dot` with a integer arguments are replaced with helper functions, as
                 // MSL's `dot` builtin only supports floating point arguments.
                 auto* polyfill = integer_dot_polyfills.GetOrAdd(vec, [&] {
@@ -357,7 +362,7 @@ struct State {
                     //         let mul = lhs * rhs;
                     //         return mul[0] + mul[1] + mul[2] + mul[3];
                     //     }
-                    auto* el_ty = vec->type();
+                    auto* el_ty = vec->Type();
                     auto* lhs = b.FunctionParam("lhs", vec);
                     auto* rhs = b.FunctionParam("rhs", vec);
                     auto* func = b.Function("tint_dot", el_ty);
@@ -377,51 +382,6 @@ struct State {
                 b.CallWithResult<msl::ir::BuiltinCall>(builtin->DetachResult(),
                                                        msl::BuiltinFn::kDot, arg0, arg1);
             }
-        });
-        builtin->Destroy();
-    }
-
-    /// Polyfill a packed 8-bit dot product call.
-    /// @param builtin the builtin call instruction
-    void Dot4x8Packed(core::ir::CoreBuiltinCall* builtin) {
-        b.InsertBefore(builtin, [&] {
-            auto* arg0 = builtin->Args()[0];
-            auto* arg1 = builtin->Args()[1];
-            auto* int32 = builtin->Result(0)->Type();
-            auto* int8 = int32->Is<core::type::I32>()
-                             ? static_cast<const core::type::Type*>(ty.i8())
-                             : static_cast<const core::type::Type*>(ty.u8());
-            // Calls to packed 8-bit dot products are polyfilled by casting to [u]char4, performing
-            // the dot product, and converting the result to a {i,u}32:
-            //   uchar4 vec1 = as_type<uchar4>(param_0);
-            //   uchar4 vec2 = as_type<uchar4>(param_1);
-            //   result = uint(vec1[0] * vec2[0] + vec1[1] * vec2[1]
-            //               + vec1[2] * vec2[2] + vec1[3] * vec2[3]);
-            auto* polyfill = packed_8bit_integer_dot_polyfills.GetOrAdd(int32, [&] {
-                auto* lhs_32 = b.FunctionParam("lhs", ty.u32());
-                auto* rhs_32 = b.FunctionParam("rhs", ty.u32());
-                auto* func = b.Function("tint_packed_8bit_dot", int32);
-                func->SetParams({lhs_32, rhs_32});
-                b.Append(func->Block(), [&] {
-                    auto* lhs = b.Bitcast(ty.vec4(int8), lhs_32);
-                    auto* rhs = b.Bitcast(ty.vec4(int8), rhs_32);
-                    core::ir::Value* sum = nullptr;
-                    for (uint32_t i = 0; i < 4; i++) {
-                        auto* l = b.Access(int8, lhs, u32(i));
-                        auto* r = b.Access(int8, rhs, u32(i));
-                        auto* mul = b.Binary<ir::Binary>(core::BinaryOp::kMultiply, int8, l, r);
-                        if (sum) {
-                            auto* add = b.Binary<ir::Binary>(core::BinaryOp::kAdd, int8, sum, mul);
-                            sum = add->Result(0);
-                        } else {
-                            sum = mul->Result(0);
-                        }
-                    }
-                    b.Return(func, b.Convert(int32, sum));
-                });
-                return func;
-            });
-            b.CallWithResult(builtin->DetachResult(), polyfill, arg0, arg1);
         });
         builtin->Destroy();
     }
@@ -517,7 +477,7 @@ struct State {
         // Convert the argument to f16 and then back again.
         b.InsertBefore(builtin, [&] {
             b.ConvertWithResult(builtin->DetachResult(),
-                                b.Convert(ty.match_width(ty.f16(), arg->Type()), arg));
+                                b.Convert(ty.MatchWidth(ty.f16(), arg->Type()), arg));
         });
         builtin->Destroy();
     }
@@ -530,10 +490,10 @@ struct State {
         b.InsertBefore(builtin, [&] {
             // Calls to `sign` with an integer argument are replaced with select operations:
             //   result = select(select(-1, 1, arg > 0), 0, arg == 0);
-            if (type->is_integer_scalar_or_vector()) {
+            if (type->IsIntegerScalarOrVector()) {
                 core::ir::Value* pos_one = b.MatchWidth(i32(1), type);
                 core::ir::Value* neg_one = b.MatchWidth(i32(-1), type);
-                const core::type::Type* bool_type = ty.match_width(ty.bool_(), type);
+                const core::type::Type* bool_type = ty.MatchWidth(ty.bool_(), type);
                 auto* zero = b.Zero(type);
                 auto* sign = b.Call(type, core::BuiltinFn::kSelect, neg_one, pos_one,
                                     b.GreaterThan(bool_type, arg, zero));
@@ -552,7 +512,7 @@ struct State {
     void TextureDimensions(core::ir::CoreBuiltinCall* builtin) {
         auto* tex = builtin->Args()[0];
         auto* type = tex->Type()->As<core::type::Texture>();
-        bool needs_lod_arg = type->dim() != core::type::TextureDimension::k1d &&
+        bool needs_lod_arg = type->Dim() != core::type::TextureDimension::k1d &&
                              !type->Is<core::type::MultisampledTexture>() &&
                              !type->Is<core::type::DepthMultisampledTexture>();
 
@@ -564,7 +524,7 @@ struct State {
                     lod = b.Value(u32(0));
                 } else {
                     lod = builtin->Args()[1];
-                    if (lod->Type()->is_signed_integer_scalar()) {
+                    if (lod->Type()->IsSignedIntegerScalar()) {
                         lod = b.Convert<u32>(lod)->Result(0);
                     }
                 }
@@ -580,9 +540,9 @@ struct State {
                 values.Push(call->Result(0));
             };
             get_dim(msl::BuiltinFn::kGetWidth);
-            if (type->dim() != core::type::TextureDimension::k1d) {
+            if (type->Dim() != core::type::TextureDimension::k1d) {
                 get_dim(msl::BuiltinFn::kGetHeight);
-                if (type->dim() == core::type::TextureDimension::k3d) {
+                if (type->Dim() == core::type::TextureDimension::k3d) {
                     get_dim(msl::BuiltinFn::kGetDepth);
                 }
             }
@@ -611,9 +571,9 @@ struct State {
         auto* tex_type = tex->Type()->As<core::type::Texture>();
 
         // Add an offset argument if it was not provided.
-        const bool has_offset = args.Back()->Type()->is_signed_integer_vector();
-        const bool needs_offset = tex_type->dim() == core::type::TextureDimension::k2d ||
-                                  tex_type->dim() == core::type::TextureDimension::k2dArray;
+        const bool has_offset = args.Back()->Type()->IsSignedIntegerVector();
+        const bool needs_offset = tex_type->Dim() == core::type::TextureDimension::k2d ||
+                                  tex_type->Dim() == core::type::TextureDimension::k2dArray;
         if (needs_offset && !has_offset) {
             args.Push(b.Zero<vec2<i32>>());
         }
@@ -623,13 +583,14 @@ struct State {
             if (component->Type()->Is<core::type::I32>()) {
                 component = b.Constant(component->Value()->ValueAs<u32>());
             }
-            args.Push(ir.allocators.values.Create<msl::ir::Component>(component->Value()));
+            args.Push(ir.CreateValue<msl::ir::Component>(component->Value()));
         }
 
         // Call the `gather()` member function.
         auto* call = b.MemberCallWithResult<msl::ir::MemberBuiltinCall>(
             builtin->DetachResult(), msl::BuiltinFn::kGather, tex, std::move(args));
         call->InsertBefore(builtin);
+        TextureSampleClampArrayIndexHelper(call);
         builtin->Destroy();
     }
 
@@ -642,6 +603,7 @@ struct State {
             builtin->DetachResult(), msl::BuiltinFn::kGatherCompare, builtin->Args()[0],
             std::move(args));
         call->InsertBefore(builtin);
+        TextureSampleClampArrayIndexHelper(call);
         builtin->Destroy();
     }
 
@@ -656,18 +618,18 @@ struct State {
         auto* coords = builtin->Args()[next_arg++];
         core::ir::Value* index = nullptr;
         core::ir::Value* lod_or_sample = nullptr;
-        if (tex_type->dim() == core::type::TextureDimension::k2dArray) {
+        if (tex_type->Dim() == core::type::TextureDimension::k2dArray) {
             index = builtin->Args()[next_arg++];
         }
-        if (tex_type->dim() != core::type::TextureDimension::k1d &&
+        if (tex_type->Dim() != core::type::TextureDimension::k1d &&
             !tex_type->Is<core::type::StorageTexture>()) {
             lod_or_sample = builtin->Args()[next_arg++];
         }
 
         b.InsertBefore(builtin, [&] {
             // Convert the coordinates to unsigned integers if necessary.
-            if (coords->Type()->is_signed_integer_scalar_or_vector()) {
-                coords = b.Convert(ty.match_width(ty.u32(), coords->Type()), coords)->Result(0);
+            if (coords->Type()->IsSignedIntegerScalarOrVector()) {
+                coords = b.Convert(ty.MatchWidth(ty.u32(), coords->Type()), coords)->Result(0);
             }
 
             // Call the `read()` member function.
@@ -696,6 +658,26 @@ struct State {
         builtin->Destroy();
     }
 
+    /// Replace texture sample call signed integer array argument with clamped code.
+    /// @param builtin the builtin call instruction
+    void TextureSampleClampArrayIndexHelper(msl::ir::MemberBuiltinCall* builtin) {
+        // The MSL intrinsic is a member function, so we split the first argument off as the
+        // object.
+        b.InsertBefore(builtin, [&] {
+            auto* tex = builtin->Object();
+            auto* tex_type = tex->Type()->As<core::type::Texture>();
+            if (IsTextureArray(tex_type->Dim())) {
+                const uint32_t kArrayIndex = 2;
+                auto* index_arg = builtin->Args()[kArrayIndex];
+                if (index_arg->Type()->IsSignedIntegerScalar()) {
+                    builtin->SetArg(kArrayIndex, b.Call(ty.i32(), core::BuiltinFn::kMax, index_arg,
+                                                        b.Zero<i32>())
+                                                     ->Result(0));
+                }
+            }
+        });
+    }
+
     /// Replace a textureNumLayers call with the equivalent MSL intrinsic.
     /// @param builtin the builtin call instruction
     void TextureNumLayers(core::ir::CoreBuiltinCall* builtin) {
@@ -722,6 +704,7 @@ struct State {
         auto* call = b.MemberCallWithResult<msl::ir::MemberBuiltinCall>(
             builtin->DetachResult(), msl::BuiltinFn::kSample, builtin->Args()[0], std::move(args));
         call->InsertBefore(builtin);
+        TextureSampleClampArrayIndexHelper(call);
         builtin->Destroy();
     }
 
@@ -736,16 +719,17 @@ struct State {
         b.InsertBefore(builtin, [&] {
             // Wrap the bias argument in a constructor for the MSL `bias` builtin type.
             uint32_t bias_idx = 2;
-            if (tex_type->dim() == core::type::TextureDimension::k2dArray ||
-                tex_type->dim() == core::type::TextureDimension::kCubeArray) {
+            if (tex_type->Dim() == core::type::TextureDimension::k2dArray ||
+                tex_type->Dim() == core::type::TextureDimension::kCubeArray) {
                 bias_idx = 3;
             }
             args[bias_idx] = b.Construct(ty.Get<msl::type::Bias>(), args[bias_idx])->Result(0);
-
-            // Call the `sample()` member function.
-            b.MemberCallWithResult<msl::ir::MemberBuiltinCall>(
-                builtin->DetachResult(), msl::BuiltinFn::kSample, tex, std::move(args));
         });
+        // Call the `sample()` member function.
+        auto* call = b.MemberCallWithResult<msl::ir::MemberBuiltinCall>(
+            builtin->DetachResult(), msl::BuiltinFn::kSample, tex, std::move(args));
+        call->InsertBefore(builtin);
+        TextureSampleClampArrayIndexHelper(call);
         builtin->Destroy();
     }
 
@@ -758,6 +742,7 @@ struct State {
             builtin->DetachResult(), msl::BuiltinFn::kSampleCompare, builtin->Args()[0],
             std::move(args));
         call->InsertBefore(builtin);
+        TextureSampleClampArrayIndexHelper(call);
         builtin->Destroy();
     }
 
@@ -780,11 +765,12 @@ struct State {
             } else {
                 args.Push(lod);
             }
-
-            // Call the `sample_compare()` member function.
-            b.MemberCallWithResult<msl::ir::MemberBuiltinCall>(
-                builtin->DetachResult(), msl::BuiltinFn::kSampleCompare, tex, std::move(args));
         });
+        // Call the `sample_compare()` member function.
+        auto* call = b.MemberCallWithResult<msl::ir::MemberBuiltinCall>(
+            builtin->DetachResult(), msl::BuiltinFn::kSampleCompare, tex, std::move(args));
+        call->InsertBefore(builtin);
+        TextureSampleClampArrayIndexHelper(call);
         builtin->Destroy();
     }
 
@@ -799,8 +785,8 @@ struct State {
         b.InsertBefore(builtin, [&] {
             // Find the ddx and ddy arguments.
             uint32_t grad_idx = 2;
-            if (tex_type->dim() == core::type::TextureDimension::k2dArray ||
-                tex_type->dim() == core::type::TextureDimension::kCubeArray) {
+            if (tex_type->Dim() == core::type::TextureDimension::k2dArray ||
+                tex_type->Dim() == core::type::TextureDimension::kCubeArray) {
                 grad_idx = 3;
             }
             auto* ddx = args[grad_idx];
@@ -808,7 +794,7 @@ struct State {
 
             // Wrap the ddx and ddy arguments in a constructor for the MSL `gradient` builtin type.
             enum type::Gradient::Dim dim;
-            switch (tex_type->dim()) {
+            switch (tex_type->Dim()) {
                 case core::type::TextureDimension::k2d:
                 case core::type::TextureDimension::k2dArray:
                     dim = type::Gradient::Dim::k2d;
@@ -828,16 +814,17 @@ struct State {
 
             // Resize the argument list as the gradient argument only takes up one argument.
             // Move the offset argument back one place if present.
-            const bool has_offset = args.Back()->Type()->is_signed_integer_vector();
+            const bool has_offset = args.Back()->Type()->IsSignedIntegerVector();
             if (has_offset) {
                 args[args.Length() - 2] = args.Back();
             }
             args.Resize(args.Length() - 1);
-
             // Call the `sample()` member function.
-            b.MemberCallWithResult<msl::ir::MemberBuiltinCall>(
+            auto* call = b.MemberCallWithResult<msl::ir::MemberBuiltinCall>(
                 builtin->DetachResult(), msl::BuiltinFn::kSample, tex, std::move(args));
+            TextureSampleClampArrayIndexHelper(call);
         });
+
         builtin->Destroy();
     }
 
@@ -852,15 +839,15 @@ struct State {
         b.InsertBefore(builtin, [&] {
             // Wrap the LOD argument in a constructor for the MSL `level` builtin type.
             uint32_t lod_idx = 2;
-            if (tex_type->dim() == core::type::TextureDimension::k2dArray ||
-                tex_type->dim() == core::type::TextureDimension::kCubeArray) {
+            if (tex_type->Dim() == core::type::TextureDimension::k2dArray ||
+                tex_type->Dim() == core::type::TextureDimension::kCubeArray) {
                 lod_idx = 3;
             }
             args[lod_idx] = b.Construct(ty.Get<msl::type::Level>(), args[lod_idx])->Result(0);
-
             // Call the `sample()` member function.
-            b.MemberCallWithResult<msl::ir::MemberBuiltinCall>(
+            auto* call = b.MemberCallWithResult<msl::ir::MemberBuiltinCall>(
                 builtin->DetachResult(), msl::BuiltinFn::kSample, tex, std::move(args));
+            TextureSampleClampArrayIndexHelper(call);
         });
         builtin->Destroy();
     }
@@ -875,7 +862,7 @@ struct State {
         auto* coords = builtin->Args()[1];
         core::ir::Value* value = nullptr;
         core::ir::Value* index = nullptr;
-        if (tex_type->dim() == core::type::TextureDimension::k2dArray) {
+        if (tex_type->Dim() == core::type::TextureDimension::k2dArray) {
             index = builtin->Args()[2];
             value = builtin->Args()[3];
         } else {
@@ -884,8 +871,8 @@ struct State {
 
         b.InsertBefore(builtin, [&] {
             // Convert the coordinates to unsigned integers if necessary.
-            if (coords->Type()->is_signed_integer_scalar_or_vector()) {
-                coords = b.Convert(ty.match_width(ty.u32(), coords->Type()), coords)->Result(0);
+            if (coords->Type()->IsSignedIntegerScalarOrVector()) {
+                coords = b.Convert(ty.MatchWidth(ty.u32(), coords->Type()), coords)->Result(0);
             }
 
             // Call the `write()` member function.
@@ -900,7 +887,7 @@ struct State {
 
             // If we are writing to a read-write texture, add a fence to ensure that the written
             // values are visible to subsequent reads from the same thread.
-            if (tex_type->access() == core::Access::kReadWrite) {
+            if (tex_type->Access() == core::Access::kReadWrite) {
                 b.MemberCall<msl::ir::MemberBuiltinCall>(ty.void_(), msl::BuiltinFn::kFence, tex);
             }
         });
@@ -915,6 +902,18 @@ struct State {
         auto args = Vector<core::ir::Value*, 1>{b.Constant(u32(type))};
         auto* call = b.CallWithResult<msl::ir::BuiltinCall>(
             builtin->DetachResult(), msl::BuiltinFn::kThreadgroupBarrier, std::move(args));
+        call->InsertBefore(builtin);
+        builtin->Destroy();
+    }
+
+    /// Replace a quadSwap* builtin with the `quad_shuffle_xor()` intrinsic.
+    /// @param builtin the builtin call instruction
+    /// @param mask the shuffle mask
+    void QuadSwap(core::ir::CoreBuiltinCall* builtin, uint32_t mask) {
+        // Replace the builtin call with a call to the msl.quad_shuffle_xor intrinsic.
+        auto args = Vector<core::ir::Value*, 2>{builtin->Args()[0], b.Constant(u32(mask))};
+        auto* call = b.CallWithResult<msl::ir::BuiltinCall>(
+            builtin->DetachResult(), msl::BuiltinFn::kQuadShuffleXor, std::move(args));
         call->InsertBefore(builtin);
         builtin->Destroy();
     }
@@ -934,9 +933,10 @@ struct State {
 }  // namespace
 
 Result<SuccessType> BuiltinPolyfill(core::ir::Module& ir) {
-    auto result = ValidateAndDumpIfNeeded(ir, "BuiltinPolyfill transform",
+    auto result = ValidateAndDumpIfNeeded(ir, "msl.BuiltinPolyfill",
                                           core::ir::Capabilities{
                                               core::ir::Capability::kAllowPointersInStructures,
+                                              core::ir::Capability::kAllowPrivateVarsInFunctions,
                                           });
     if (result != Success) {
         return result.Failure();

@@ -3,49 +3,45 @@ cbuffer cbuffer_a : register(b0) {
   uint4 a[16];
 };
 RWByteAddressBuffer s : register(u1);
-static int counter = 0;
+static int counter = int(0);
 int i() {
-  counter = (counter + 1);
+  counter = (counter + int(1));
   return counter;
 }
 
 float4x3 v(uint start_byte_offset) {
-  float3 v_1 = asfloat(a[(start_byte_offset / 16u)].xyz);
-  float3 v_2 = asfloat(a[((16u + start_byte_offset) / 16u)].xyz);
-  float3 v_3 = asfloat(a[((32u + start_byte_offset) / 16u)].xyz);
-  return float4x3(v_1, v_2, v_3, asfloat(a[((48u + start_byte_offset) / 16u)].xyz));
+  return float4x3(asfloat(a[(start_byte_offset / 16u)].xyz), asfloat(a[((16u + start_byte_offset) / 16u)].xyz), asfloat(a[((32u + start_byte_offset) / 16u)].xyz), asfloat(a[((48u + start_byte_offset) / 16u)].xyz));
 }
 
 typedef float4x3 ary_ret[4];
-ary_ret v_4(uint start_byte_offset) {
-  float4x3 a[4] = (float4x3[4])0;
+ary_ret v_1(uint start_byte_offset) {
+  float4x3 a_1[4] = (float4x3[4])0;
   {
-    uint v_5 = 0u;
-    v_5 = 0u;
+    uint v_2 = 0u;
+    v_2 = 0u;
     while(true) {
-      uint v_6 = v_5;
-      if ((v_6 >= 4u)) {
+      uint v_3 = v_2;
+      if ((v_3 >= 4u)) {
         break;
       }
-      a[v_6] = v((start_byte_offset + (v_6 * 64u)));
+      a_1[v_3] = v((start_byte_offset + (v_3 * 64u)));
       {
-        v_5 = (v_6 + 1u);
+        v_2 = (v_3 + 1u);
       }
       continue;
     }
   }
-  float4x3 v_7[4] = a;
-  return v_7;
+  float4x3 v_4[4] = a_1;
+  return v_4;
 }
 
 [numthreads(1, 1, 1)]
 void f() {
-  uint v_8 = (64u * uint(i()));
-  uint v_9 = (16u * uint(i()));
-  float4x3 v_10[4] = v_4(0u);
-  float4x3 l_a_i = v(v_8);
-  float3 l_a_i_i = asfloat(a[((v_8 + v_9) / 16u)].xyz);
-  float4x3 l_a[4] = v_10;
-  s.Store(0u, asuint((((asfloat(a[((v_8 + v_9) / 16u)][(((v_8 + v_9) % 16u) / 4u)]) + l_a[0][0][0u]) + l_a_i[0][0u]) + l_a_i_i[0u])));
+  uint v_5 = (64u * uint(min(uint(i()), 3u)));
+  uint v_6 = (16u * uint(min(uint(i()), 3u)));
+  float4x3 l_a[4] = v_1(0u);
+  float4x3 l_a_i = v(v_5);
+  float3 l_a_i_i = asfloat(a[((v_5 + v_6) / 16u)].xyz);
+  s.Store(0u, asuint((((asfloat(a[((v_5 + v_6) / 16u)][(((v_5 + v_6) % 16u) / 4u)]) + l_a[0u][0u].x) + l_a_i[0u].x) + l_a_i_i.x)));
 }
 

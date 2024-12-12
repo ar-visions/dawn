@@ -44,7 +44,7 @@ using testing::Exactly;
 using testing::HasSubstr;
 using testing::MockCppCallback;
 
-using MockMapAsyncCallback = MockCppCallback<void (*)(wgpu::MapAsyncStatus, const char*)>;
+using MockMapAsyncCallback = MockCppCallback<void (*)(wgpu::MapAsyncStatus, wgpu::StringView)>;
 using MockQueueWorkDoneCallback = MockCppCallback<void (*)(wgpu::QueueWorkDoneStatus)>;
 
 static const int fakeUserData = 0;
@@ -201,9 +201,8 @@ TEST_P(DeviceLostTest, CreateShaderModuleFails) {
         })"));
 }
 
-// Note that no device lost tests are done for swapchain because it is awkward to create a
-// wgpu::Surface in this file. SwapChainValidationTests.CreateSwapChainFailsAfterDevLost covers
-// this validation.
+// Note that no device lost tests are done for surface because it is awkward to create a
+// wgpu::Surface in this file. SurfaceTests.GetAfterDeviceLoss covers this validation.
 
 // Tests that CreateTexture fails when device is lost
 TEST_P(DeviceLostTest, CreateTextureFails) {
@@ -239,7 +238,7 @@ TEST_P(DeviceLostTest, BufferMapAsyncFailsForWriting) {
 
     LoseDeviceForTesting();
 
-    EXPECT_CALL(mMapAsyncCb, Call(wgpu::MapAsyncStatus::Error, HasSubstr("is lost"))).Times(1);
+    EXPECT_CALL(mMapAsyncCb, Call(wgpu::MapAsyncStatus::Aborted, HasSubstr("is lost"))).Times(1);
     buffer.MapAsync(wgpu::MapMode::Write, 0, 4, wgpu::CallbackMode::AllowProcessEvents,
                     mMapAsyncCb.Callback());
 }
@@ -293,7 +292,7 @@ TEST_P(DeviceLostTest, BufferMapAsyncFailsForReading) {
 
     LoseDeviceForTesting();
 
-    EXPECT_CALL(mMapAsyncCb, Call(wgpu::MapAsyncStatus::Error, HasSubstr("is lost"))).Times(1);
+    EXPECT_CALL(mMapAsyncCb, Call(wgpu::MapAsyncStatus::Aborted, HasSubstr("is lost"))).Times(1);
     buffer.MapAsync(wgpu::MapMode::Read, 0, 4, wgpu::CallbackMode::AllowProcessEvents,
                     mMapAsyncCb.Callback());
 }
@@ -447,12 +446,13 @@ TEST_P(DeviceLostTest, DeviceLostBeforeCreatePipelineAsyncCallback) {
     wgpu::ComputePipelineDescriptor descriptor;
     descriptor.compute.module = csModule;
 
-    device.CreateComputePipelineAsync(
-        &descriptor, wgpu::CallbackMode::AllowProcessEvents,
-        [](wgpu::CreatePipelineAsyncStatus status, wgpu::ComputePipeline pipeline, const char*) {
-            EXPECT_EQ(wgpu::CreatePipelineAsyncStatus::Success, status);
-            EXPECT_NE(pipeline, nullptr);
-        });
+    device.CreateComputePipelineAsync(&descriptor, wgpu::CallbackMode::AllowProcessEvents,
+                                      [](wgpu::CreatePipelineAsyncStatus status,
+                                         wgpu::ComputePipeline pipeline, wgpu::StringView) {
+                                          EXPECT_EQ(wgpu::CreatePipelineAsyncStatus::Success,
+                                                    status);
+                                          EXPECT_NE(pipeline, nullptr);
+                                      });
 
     LoseDeviceForTesting();
 }

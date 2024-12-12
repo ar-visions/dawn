@@ -52,10 +52,10 @@
     X(Maximum,                    maxComputeWorkgroupSizeZ,        64,          64,         64) \
     X(Maximum,            maxComputeWorkgroupsPerDimension,     65535,       65535,      65535)
 
-// Tiers are 128MB, 1GB, 2GB-4, 4GB-4.
+// Tiers are 128MB, 512MB, 1GB, 2GB-4, 4GB-4.
 //                                          compat     tier0      tier1
 #define LIMITS_STORAGE_BUFFER_BINDING_SIZE(X)                                                        \
-    X(Maximum, maxStorageBufferBindingSize, 134217728, 134217728, 1073741824, 2147483644, 4294967292)
+    X(Maximum, maxStorageBufferBindingSize, 134217728, 134217728, 536870912, 1073741824, 2147483644, 4294967292)
 
 // Tiers are 256MB, 1GB, 2GB, 4GB.
 //                            compat      tier0       tier1
@@ -221,20 +221,20 @@ bool IsLimitUndefined<uint64_t>(uint64_t value) {
 
 }  // namespace
 
-void GetDefaultLimits(Limits* limits, FeatureLevel featureLevel) {
+void GetDefaultLimits(Limits* limits, wgpu::FeatureLevel featureLevel) {
     DAWN_ASSERT(limits != nullptr);
 #define X(Better, limitName, compat, base, ...) \
-    limits->limitName = featureLevel == FeatureLevel::Compatibility ? compat : base;
+    limits->limitName = featureLevel == wgpu::FeatureLevel::Compatibility ? compat : base;
     LIMITS(X)
 #undef X
 }
 
-Limits ReifyDefaultLimits(const Limits& limits, FeatureLevel featureLevel) {
+Limits ReifyDefaultLimits(const Limits& limits, wgpu::FeatureLevel featureLevel) {
     Limits out;
 #define X(Class, limitName, compat, base, ...)                                         \
     {                                                                                  \
         const auto defaultLimit = static_cast<decltype(limits.limitName)>(             \
-            featureLevel == FeatureLevel::Compatibility ? compat : base);              \
+            featureLevel == wgpu::FeatureLevel::Compatibility ? compat : base);        \
         if (IsLimitUndefined(limits.limitName) ||                                      \
             CheckLimit<LimitClass::Class>::IsBetter(defaultLimit, limits.limitName)) { \
             /* If the limit is undefined or the default is better, use the default */  \

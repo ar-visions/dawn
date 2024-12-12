@@ -36,6 +36,7 @@
 #include "dawn/native/Toggles.h"
 #include "dawn/native/dawn_platform.h"
 #include "dawn/tests/MockCallback.h"
+#include "dawn/tests/StringViewMatchers.h"
 #include "dawn/utils/SystemUtils.h"
 #include "dawn/utils/WGPUHelpers.h"
 #include "gtest/gtest.h"
@@ -44,7 +45,9 @@ namespace dawn::native {
 namespace {
 
 using testing::Contains;
+using testing::EmptySizedString;
 using testing::MockCallback;
+using testing::NonEmptySizedString;
 using testing::NotNull;
 using testing::SaveArg;
 using testing::StrEq;
@@ -161,10 +164,10 @@ TEST_F(DeviceCreationTest, CreateDeviceRequiringExperimentalFeatures) {
             wgpu::Device device = unsafeAdapter.CreateDevice(&deviceDescriptor);
             EXPECT_NE(device, nullptr);
 
-            ASSERT_EQ(1u, device.EnumerateFeatures(nullptr));
-            wgpu::FeatureName enabledFeature;
-            device.EnumerateFeatures(&enabledFeature);
-            EXPECT_EQ(enabledFeature, featureName);
+            wgpu::SupportedFeatures supportedFeatures;
+            device.GetFeatures(&supportedFeatures);
+            ASSERT_EQ(1u, supportedFeatures.featureCount);
+            EXPECT_EQ(featureName, supportedFeatures.features[0]);
         }
 
         // Test creating device with AllowUnsafeApis enabled in device toggle descriptor will
@@ -181,10 +184,10 @@ TEST_F(DeviceCreationTest, CreateDeviceRequiringExperimentalFeatures) {
                 wgpu::Device device = adapter.CreateDevice(&deviceDescriptor);
                 EXPECT_NE(device, nullptr);
 
-                ASSERT_EQ(1u, device.EnumerateFeatures(nullptr));
-                wgpu::FeatureName enabledFeature;
-                device.EnumerateFeatures(&enabledFeature);
-                EXPECT_EQ(enabledFeature, featureName);
+                wgpu::SupportedFeatures supportedFeatures;
+                device.GetFeatures(&supportedFeatures);
+                ASSERT_EQ(1u, supportedFeatures.featureCount);
+                EXPECT_EQ(featureName, supportedFeatures.features[0]);
             }
 
             // Test on adapter with AllowUnsafeApis disabled.
@@ -192,10 +195,10 @@ TEST_F(DeviceCreationTest, CreateDeviceRequiringExperimentalFeatures) {
                 wgpu::Device device = unsafeAdapter.CreateDevice(&deviceDescriptor);
                 EXPECT_NE(device, nullptr);
 
-                ASSERT_EQ(1u, device.EnumerateFeatures(nullptr));
-                wgpu::FeatureName enabledFeature;
-                device.EnumerateFeatures(&enabledFeature);
-                EXPECT_EQ(enabledFeature, featureName);
+                wgpu::SupportedFeatures supportedFeatures;
+                device.GetFeatures(&supportedFeatures);
+                ASSERT_EQ(1u, supportedFeatures.featureCount);
+                EXPECT_EQ(featureName, supportedFeatures.features[0]);
             }
         }
 
@@ -321,7 +324,7 @@ TEST_P(DeviceCreationFutureTest, RequestDeviceSuccess) {
     WGPUDevice cDevice;
     {
         MockCallback<WGPURequestDeviceCallback> cb;
-        EXPECT_CALL(cb, Call(WGPURequestDeviceStatus_Success, NotNull(), nullptr, this))
+        EXPECT_CALL(cb, Call(WGPURequestDeviceStatus_Success, NotNull(), EmptySizedString(), this))
             .WillOnce(SaveArg<1>(&cDevice));
 
         wgpu::DeviceDescriptor desc = {};
@@ -337,7 +340,7 @@ TEST_P(DeviceCreationFutureTest, RequestDeviceNullDescriptorSuccess) {
     WGPUDevice cDevice;
     {
         MockCallback<WGPURequestDeviceCallback> cb;
-        EXPECT_CALL(cb, Call(WGPURequestDeviceStatus_Success, NotNull(), nullptr, this))
+        EXPECT_CALL(cb, Call(WGPURequestDeviceStatus_Success, NotNull(), EmptySizedString(), this))
             .WillOnce(SaveArg<1>(&cDevice));
 
         RequestDevice(adapter, nullptr, cb.Callback(), cb.MakeUserdata(this));
@@ -350,7 +353,8 @@ TEST_P(DeviceCreationFutureTest, RequestDeviceNullDescriptorSuccess) {
 // Test failing call to RequestDevice with invalid feature
 TEST_P(DeviceCreationFutureTest, RequestDeviceFailure) {
     MockCallback<WGPURequestDeviceCallback> cb;
-    EXPECT_CALL(cb, Call(WGPURequestDeviceStatus_Error, nullptr, NotNull(), this)).Times(1);
+    EXPECT_CALL(cb, Call(WGPURequestDeviceStatus_Error, nullptr, NonEmptySizedString(), this))
+        .Times(1);
 
     wgpu::DeviceDescriptor desc = {};
     wgpu::FeatureName invalidFeature = static_cast<wgpu::FeatureName>(WGPUFeatureName_Force32);

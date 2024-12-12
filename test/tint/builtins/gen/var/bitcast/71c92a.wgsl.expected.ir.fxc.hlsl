@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 struct VertexOutput {
   float4 pos;
@@ -25,7 +25,7 @@ vector<float16_t, 4> tint_bitcast_to_f16(int2 src) {
 }
 
 vector<float16_t, 4> bitcast_71c92a() {
-  int2 arg_0 = (1).xx;
+  int2 arg_0 = (int(1)).xx;
   vector<float16_t, 4> res = tint_bitcast_to_f16(arg_0);
   return res;
 }
@@ -56,5 +56,7 @@ vertex_main_outputs vertex_main() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x0000028BD9C8F9A0(3,10-18): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(3,10-18): error X3000: syntax error: unexpected token 'float16_t'
 
+
+tint executable returned error: exit status 1

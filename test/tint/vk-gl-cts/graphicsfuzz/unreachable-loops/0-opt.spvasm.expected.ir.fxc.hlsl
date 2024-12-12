@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 struct main_out {
   float4 x_GLF_color_1;
@@ -14,7 +14,7 @@ cbuffer cbuffer_x_5 : register(b0) {
   uint4 x_5[1];
 };
 void main_1() {
-  int m = 0;
+  int m = int(0);
   x_GLF_color = float4(1.0f, 0.0f, 0.0f, 1.0f);
   float v = asfloat(x_5[0u].x);
   if ((v > asfloat(x_5[0u].y))) {
@@ -26,7 +26,7 @@ void main_1() {
         continue;
       }
     }
-    m = 1;
+    m = int(1);
     {
       while(true) {
         if (true) {
@@ -55,6 +55,8 @@ main_outputs main() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x000002A68631C820(20,7-17): warning X3557: loop only executes for 0 iteration(s), forcing loop to unroll
-c:\src\dawn\Shader@0x000002A68631C820(29,13-16): error X3696: infinite loop detected - loop never exits
+<scrubbed_path>(20,7-17): warning X3557: loop only executes for 0 iteration(s), forcing loop to unroll
+<scrubbed_path>(29,13-16): error X3696: infinite loop detected - loop never exits
 
+
+tint executable returned error: exit status 1

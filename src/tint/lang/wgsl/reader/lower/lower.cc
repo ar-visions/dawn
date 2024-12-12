@@ -35,6 +35,7 @@
 #include "src/tint/lang/core/ir/validator.h"
 #include "src/tint/lang/wgsl/builtin_fn.h"
 #include "src/tint/lang/wgsl/ir/builtin_call.h"
+#include "src/tint/utils/diagnostic/diagnostic.h"
 #include "src/tint/utils/ice/ice.h"
 
 namespace tint::wgsl::reader {
@@ -166,12 +167,31 @@ core::BuiltinFn Convert(wgsl::BuiltinFn fn) {
         CASE(kAtomicExchange)
         CASE(kAtomicCompareExchangeWeak)
         CASE(kSubgroupBallot)
+        CASE(kSubgroupElect)
         CASE(kSubgroupBroadcast)
+        CASE(kSubgroupBroadcastFirst)
+        CASE(kSubgroupShuffle)
+        CASE(kSubgroupShuffleXor)
+        CASE(kSubgroupShuffleUp)
+        CASE(kSubgroupShuffleDown)
         CASE(kInputAttachmentLoad)
         CASE(kSubgroupAdd)
+        CASE(kSubgroupInclusiveAdd)
         CASE(kSubgroupExclusiveAdd)
         CASE(kSubgroupMul)
+        CASE(kSubgroupInclusiveMul)
         CASE(kSubgroupExclusiveMul)
+        CASE(kSubgroupAnd)
+        CASE(kSubgroupOr)
+        CASE(kSubgroupXor)
+        CASE(kSubgroupMin)
+        CASE(kSubgroupMax)
+        CASE(kSubgroupAll)
+        CASE(kSubgroupAny)
+        CASE(kQuadBroadcast)
+        CASE(kQuadSwapX)
+        CASE(kQuadSwapY)
+        CASE(kQuadSwapDiagonal)
 
         case tint::wgsl::BuiltinFn::kBitcast:               // should lower to ir::Bitcast
         case tint::wgsl::BuiltinFn::kWorkgroupUniformLoad:  // should be handled in Lower()
@@ -185,7 +205,9 @@ core::BuiltinFn Convert(wgsl::BuiltinFn fn) {
 }  // namespace
 
 Result<SuccessType> Lower(core::ir::Module& mod) {
-    if (auto res = core::ir::ValidateAndDumpIfNeeded(mod, "lowering from WGSL"); res != Success) {
+    auto res = core::ir::ValidateAndDumpIfNeeded(
+        mod, "wgsl.Lower", core::ir::Capabilities{core::ir::Capability::kAllowOverrides});
+    if (res != Success) {
         return res.Failure();
     }
 

@@ -1,91 +1,71 @@
-SKIP: FAILED
-
-#version 310 es
-
-layout(rg32i) uniform highp readonly iimage2D arg_0;
-layout(binding = 0, std430) buffer prevent_dce_block_ssbo {
-  ivec4 inner;
-} prevent_dce;
-
-void textureLoad_2d6cf7() {
-  ivec4 res = imageLoad(arg_0, ivec2(1, 0));
-  prevent_dce.inner = res;
-}
-
-vec4 vertex_main() {
-  textureLoad_2d6cf7();
-  return vec4(0.0f);
-}
-
-void main() {
-  gl_PointSize = 1.0;
-  vec4 inner_result = vertex_main();
-  gl_Position = inner_result;
-  gl_Position.y = -(gl_Position.y);
-  gl_Position.z = ((2.0f * gl_Position.z) - gl_Position.w);
-  return;
-}
-error: Error parsing GLSL shader:
-ERROR: 0:3: 'image load-store format' : not supported with this profile: es
-ERROR: 0:3: '' : compilation terminated 
-ERROR: 2 compilation errors.  No code generated.
-
-
-
-#version 310 es
+//
+// fragment_main
+//
+#version 460
 precision highp float;
 precision highp int;
 
-layout(rg32i) uniform highp readonly iimage2D arg_0;
-layout(binding = 0, std430) buffer prevent_dce_block_ssbo {
+layout(binding = 0, std430)
+buffer prevent_dce_block_1_ssbo {
   ivec4 inner;
-} prevent_dce;
-
-void textureLoad_2d6cf7() {
-  ivec4 res = imageLoad(arg_0, ivec2(1, 0));
-  prevent_dce.inner = res;
+} v;
+layout(binding = 0, rg32i) uniform highp readonly iimage2D arg_0;
+ivec4 textureLoad_2d6cf7() {
+  uint v_1 = (uvec2(imageSize(arg_0)).x - 1u);
+  ivec4 res = imageLoad(arg_0, ivec2(uvec2(min(uint(1), v_1), 0u)));
+  return res;
 }
-
-void fragment_main() {
-  textureLoad_2d6cf7();
-}
-
 void main() {
-  fragment_main();
-  return;
+  v.inner = textureLoad_2d6cf7();
 }
-error: Error parsing GLSL shader:
-ERROR: 0:5: 'image load-store format' : not supported with this profile: es
-ERROR: 0:5: '' : compilation terminated 
-ERROR: 2 compilation errors.  No code generated.
+//
+// compute_main
+//
+#version 460
 
-
-
-#version 310 es
-
-layout(rg32i) uniform highp readonly iimage2D arg_0;
-layout(binding = 0, std430) buffer prevent_dce_block_ssbo {
+layout(binding = 0, std430)
+buffer prevent_dce_block_1_ssbo {
   ivec4 inner;
-} prevent_dce;
-
-void textureLoad_2d6cf7() {
-  ivec4 res = imageLoad(arg_0, ivec2(1, 0));
-  prevent_dce.inner = res;
+} v;
+layout(binding = 0, rg32i) uniform highp readonly iimage2D arg_0;
+ivec4 textureLoad_2d6cf7() {
+  uint v_1 = (uvec2(imageSize(arg_0)).x - 1u);
+  ivec4 res = imageLoad(arg_0, ivec2(uvec2(min(uint(1), v_1), 0u)));
+  return res;
 }
-
-void compute_main() {
-  textureLoad_2d6cf7();
-}
-
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 void main() {
-  compute_main();
-  return;
+  v.inner = textureLoad_2d6cf7();
 }
-error: Error parsing GLSL shader:
-ERROR: 0:3: 'image load-store format' : not supported with this profile: es
-ERROR: 0:3: '' : compilation terminated 
-ERROR: 2 compilation errors.  No code generated.
+//
+// vertex_main
+//
+#version 460
 
 
+struct VertexOutput {
+  vec4 pos;
+  ivec4 prevent_dce;
+};
 
+layout(binding = 0, rg32i) uniform highp readonly iimage2D arg_0;
+layout(location = 0) flat out ivec4 vertex_main_loc0_Output;
+ivec4 textureLoad_2d6cf7() {
+  uint v = (uvec2(imageSize(arg_0)).x - 1u);
+  ivec4 res = imageLoad(arg_0, ivec2(uvec2(min(uint(1), v), 0u)));
+  return res;
+}
+VertexOutput vertex_main_inner() {
+  VertexOutput tint_symbol = VertexOutput(vec4(0.0f), ivec4(0));
+  tint_symbol.pos = vec4(0.0f);
+  tint_symbol.prevent_dce = textureLoad_2d6cf7();
+  return tint_symbol;
+}
+void main() {
+  VertexOutput v_1 = vertex_main_inner();
+  gl_Position = v_1.pos;
+  gl_Position.y = -(gl_Position.y);
+  gl_Position.z = ((2.0f * gl_Position.z) - gl_Position.w);
+  vertex_main_loc0_Output = v_1.prevent_dce;
+  gl_PointSize = 1.0f;
+}

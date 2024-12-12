@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 struct VertexOutput {
   float4 pos;
@@ -14,7 +14,7 @@ struct vertex_main_outputs {
 RWByteAddressBuffer prevent_dce : register(u0);
 vector<float16_t, 3> ldexp_8e43e9() {
   vector<float16_t, 3> arg_0 = (float16_t(1.0h)).xxx;
-  vector<float16_t, 3> res = ldexp(arg_0, (1).xxx);
+  vector<float16_t, 3> res = ldexp(arg_0, (int(1)).xxx);
   return res;
 }
 
@@ -44,5 +44,7 @@ vertex_main_outputs vertex_main() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x00000113601DCD80(3,10-18): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(3,10-18): error X3000: syntax error: unexpected token 'float16_t'
 
+
+tint executable returned error: exit status 1

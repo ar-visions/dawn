@@ -1,9 +1,80 @@
-SKIP: FAILED
+//
+// fragment_main
+//
 
-..\..\src\tint\utils\containers\slice.h:216 internal compiler error: TINT_ASSERT(i < Length())
-********************************************************************
-*  The tint shader compiler has encountered an unexpected error.   *
-*                                                                  *
-*  Please help us fix this issue by submitting a bug report at     *
-*  crbug.com/tint with the source program that triggered the bug.  *
-********************************************************************
+RWByteAddressBuffer prevent_dce : register(u0);
+Texture2DArray<int4> arg_0 : register(t0, space1);
+int4 textureLoad_2a82d9() {
+  uint3 v = (0u).xxx;
+  arg_0.GetDimensions(v.x, v.y, v.z);
+  uint3 v_1 = (0u).xxx;
+  arg_0.GetDimensions(v_1.x, v_1.y, v_1.z);
+  int2 v_2 = int2(min((1u).xx, (v_1.xy - (1u).xx)));
+  int4 res = int4(arg_0.Load(int4(v_2, int(min(1u, (v.z - 1u))), int(0))));
+  return res;
+}
+
+void fragment_main() {
+  prevent_dce.Store4(0u, asuint(textureLoad_2a82d9()));
+}
+
+//
+// compute_main
+//
+
+RWByteAddressBuffer prevent_dce : register(u0);
+Texture2DArray<int4> arg_0 : register(t0, space1);
+int4 textureLoad_2a82d9() {
+  uint3 v = (0u).xxx;
+  arg_0.GetDimensions(v.x, v.y, v.z);
+  uint3 v_1 = (0u).xxx;
+  arg_0.GetDimensions(v_1.x, v_1.y, v_1.z);
+  int2 v_2 = int2(min((1u).xx, (v_1.xy - (1u).xx)));
+  int4 res = int4(arg_0.Load(int4(v_2, int(min(1u, (v.z - 1u))), int(0))));
+  return res;
+}
+
+[numthreads(1, 1, 1)]
+void compute_main() {
+  prevent_dce.Store4(0u, asuint(textureLoad_2a82d9()));
+}
+
+//
+// vertex_main
+//
+struct VertexOutput {
+  float4 pos;
+  int4 prevent_dce;
+};
+
+struct vertex_main_outputs {
+  nointerpolation int4 VertexOutput_prevent_dce : TEXCOORD0;
+  float4 VertexOutput_pos : SV_Position;
+};
+
+
+Texture2DArray<int4> arg_0 : register(t0, space1);
+int4 textureLoad_2a82d9() {
+  uint3 v = (0u).xxx;
+  arg_0.GetDimensions(v.x, v.y, v.z);
+  uint3 v_1 = (0u).xxx;
+  arg_0.GetDimensions(v_1.x, v_1.y, v_1.z);
+  int2 v_2 = int2(min((1u).xx, (v_1.xy - (1u).xx)));
+  int4 res = int4(arg_0.Load(int4(v_2, int(min(1u, (v.z - 1u))), int(0))));
+  return res;
+}
+
+VertexOutput vertex_main_inner() {
+  VertexOutput tint_symbol = (VertexOutput)0;
+  tint_symbol.pos = (0.0f).xxxx;
+  tint_symbol.prevent_dce = textureLoad_2a82d9();
+  VertexOutput v_3 = tint_symbol;
+  return v_3;
+}
+
+vertex_main_outputs vertex_main() {
+  VertexOutput v_4 = vertex_main_inner();
+  vertex_main_outputs v_5 = {v_4.prevent_dce, v_4.pos};
+  return v_5;
+}
+

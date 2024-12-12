@@ -28,6 +28,7 @@
 #ifndef SRC_DAWN_WIRE_CLIENT_ADAPTER_H_
 #define SRC_DAWN_WIRE_CLIENT_ADAPTER_H_
 
+#include <string>
 #include <vector>
 
 #include "dawn/wire/WireClient.h"
@@ -46,13 +47,11 @@ class Adapter final : public ObjectWithEventsBase {
 
     WGPUStatus GetLimits(WGPUSupportedLimits* limits) const;
     bool HasFeature(WGPUFeatureName feature) const;
-    size_t EnumerateFeatures(WGPUFeatureName* features) const;
     void SetLimits(const WGPUSupportedLimits* limits);
     void SetFeatures(const WGPUFeatureName* features, uint32_t featuresCount);
     void SetInfo(const WGPUAdapterInfo* info);
-    void SetProperties(const WGPUAdapterInfo* info);
     WGPUStatus GetInfo(WGPUAdapterInfo* info) const;
-    WGPUStatus GetProperties(WGPUAdapterProperties* properties) const;
+    void GetFeatures(WGPUSupportedFeatures* features) const;
     void RequestDevice(const WGPUDeviceDescriptor* descriptor,
                        WGPURequestDeviceCallback callback,
                        void* userdata);
@@ -69,11 +68,21 @@ class Adapter final : public ObjectWithEventsBase {
 
   private:
     LimitsAndFeatures mLimitsAndFeatures;
-    WGPUAdapterProperties mProperties;
     WGPUAdapterInfo mInfo;
+    std::string mVendor;
+    std::string mArchitecture;
+    std::string mDeviceName;
+    std::string mDescription;
     std::vector<WGPUMemoryHeapInfo> mMemoryHeapInfo;
     WGPUAdapterPropertiesD3D mD3DProperties;
     WGPUAdapterPropertiesVk mVkProperties;
+    // Initialize subgroup properties so they can be read even if adapter
+    // acquisition fails.
+    WGPUAdapterPropertiesSubgroups mSubgroupsProperties = {
+        {nullptr, WGPUSType_AdapterPropertiesSubgroups},
+        4u,   // subgroupMinSize
+        128u  // subgroupMaxSize
+    };
 };
 
 }  // namespace dawn::wire::client

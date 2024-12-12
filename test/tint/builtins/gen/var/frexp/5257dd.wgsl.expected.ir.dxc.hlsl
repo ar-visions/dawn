@@ -1,5 +1,51 @@
-SKIP: FAILED
+//
+// fragment_main
+//
+struct frexp_result_f16 {
+  float16_t fract;
+  int exp;
+};
 
+
+void frexp_5257dd() {
+  float16_t arg_0 = float16_t(1.0h);
+  float16_t v = arg_0;
+  float16_t v_1 = float16_t(0.0h);
+  float16_t v_2 = frexp(v, v_1);
+  float16_t v_3 = (float16_t(sign(v)) * v_2);
+  frexp_result_f16 res = {v_3, int(v_1)};
+}
+
+void fragment_main() {
+  frexp_5257dd();
+}
+
+//
+// compute_main
+//
+struct frexp_result_f16 {
+  float16_t fract;
+  int exp;
+};
+
+
+void frexp_5257dd() {
+  float16_t arg_0 = float16_t(1.0h);
+  float16_t v = arg_0;
+  float16_t v_1 = float16_t(0.0h);
+  float16_t v_2 = frexp(v, v_1);
+  float16_t v_3 = (float16_t(sign(v)) * v_2);
+  frexp_result_f16 res = {v_3, int(v_1)};
+}
+
+[numthreads(1, 1, 1)]
+void compute_main() {
+  frexp_5257dd();
+}
+
+//
+// vertex_main
+//
 struct frexp_result_f16 {
   float16_t fract;
   int exp;
@@ -16,34 +62,24 @@ struct vertex_main_outputs {
 
 void frexp_5257dd() {
   float16_t arg_0 = float16_t(1.0h);
-  frexp_result_f16 res = frexp(arg_0);
-}
-
-void fragment_main() {
-  frexp_5257dd();
-}
-
-[numthreads(1, 1, 1)]
-void compute_main() {
-  frexp_5257dd();
+  float16_t v = arg_0;
+  float16_t v_1 = float16_t(0.0h);
+  float16_t v_2 = frexp(v, v_1);
+  float16_t v_3 = (float16_t(sign(v)) * v_2);
+  frexp_result_f16 res = {v_3, int(v_1)};
 }
 
 VertexOutput vertex_main_inner() {
   VertexOutput tint_symbol = (VertexOutput)0;
   tint_symbol.pos = (0.0f).xxxx;
   frexp_5257dd();
-  VertexOutput v = tint_symbol;
-  return v;
+  VertexOutput v_4 = tint_symbol;
+  return v_4;
 }
 
 vertex_main_outputs vertex_main() {
-  VertexOutput v_1 = vertex_main_inner();
-  vertex_main_outputs v_2 = {v_1.pos};
-  return v_2;
+  VertexOutput v_5 = vertex_main_inner();
+  vertex_main_outputs v_6 = {v_5.pos};
+  return v_6;
 }
-
-DXC validation failure:
-hlsl.hlsl:17:26: error: use of undeclared identifier 'frexp'
-  frexp_result_f16 res = frexp(arg_0);
-                         ^
 

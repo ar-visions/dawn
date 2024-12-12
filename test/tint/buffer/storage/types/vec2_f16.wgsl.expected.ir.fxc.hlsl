@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 
 ByteAddressBuffer tint_symbol : register(t0);
@@ -9,5 +9,7 @@ void main() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x0000027BEF4FFFA0(6,3-21): error X3018: invalid subscript 'Store'
+<scrubbed_path>(6,3-21): error X3018: invalid subscript 'Store'
 
+
+tint executable returned error: exit status 1

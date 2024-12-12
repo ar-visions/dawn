@@ -1,23 +1,11 @@
-SKIP: FAILED
+SKIP: INVALID
 
+<dawn>/src/tint/lang/glsl/writer/printer/printer.cc:1487 internal compiler error: TINT_UNREACHABLE unhandled core builtin: subgroupBroadcast
+********************************************************************
+*  The tint shader compiler has encountered an unexpected error.   *
+*                                                                  *
+*  Please help us fix this issue by submitting a bug report at     *
+*  crbug.com/tint with the source program that triggered the bug.  *
+********************************************************************
 
-enable chromium_experimental_subgroups;
-
-fn subgroupBroadcast_912ff5() {
-  var arg_0 = vec3<f32>(1.0f);
-  const arg_1 = 1u;
-  var res : vec3<f32> = subgroupBroadcast(arg_0, arg_1);
-  prevent_dce = res;
-}
-
-@group(2) @binding(0) var<storage, read_write> prevent_dce : vec3<f32>;
-
-@compute @workgroup_size(1)
-fn compute_main() {
-  subgroupBroadcast_912ff5();
-}
-
-Failed to generate: <dawn>/test/tint/builtins/gen/var/subgroupBroadcast/912ff5.wgsl:38:8 error: GLSL backend does not support extension 'chromium_experimental_subgroups'
-enable chromium_experimental_subgroups;
-       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
+tint executable returned error: signal: trace/BPT trap

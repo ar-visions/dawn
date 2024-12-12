@@ -3,8 +3,12 @@ using namespace metal;
 
 void f() {
   {
+    uint2 tint_loop_idx = 0u;
     int must_not_collide = 0;
     while(true) {
+      if (all((tint_loop_idx == uint2(4294967295u)))) {
+        break;
+      }
       break;
     }
   }

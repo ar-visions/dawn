@@ -1,33 +1,34 @@
-SKIP: FAILED
-
 
 RWByteAddressBuffer buffer : register(u0);
 void foo() {
   {
-    int i = 0;
+    int i = int(0);
     while(true) {
-      if ((i < 4)) {
+      if ((i < int(4))) {
       } else {
         break;
       }
-      uint v = (uint(i) * 4u);
-      switch(asint(buffer.Load((0u + v)))) {
-        case 1:
+      bool tint_continue = false;
+      switch(asint(buffer.Load((0u + (min(uint(i), 3u) * 4u))))) {
+        case int(1):
         {
-          {
-            i = (i + 1);
-          }
-          continue;
+          tint_continue = true;
+          break;
         }
         default:
         {
-          uint v_1 = ((0u + v) + (uint(i) * 4u));
-          buffer.Store(v_1, asuint(2));
+          buffer.Store((0u + (min(uint(i), 3u) * 4u)), asuint(int(2)));
           break;
         }
       }
+      if (tint_continue) {
+        {
+          i = (i + int(1));
+        }
+        continue;
+      }
       {
-        i = (i + 1);
+        i = (i + int(1));
       }
       continue;
     }
@@ -37,7 +38,4 @@ void foo() {
 void main() {
   foo();
 }
-
-FXC validation failure:
-c:\src\dawn\Shader@0x0000019B9CA05800(18,11-19): error X3708: continue cannot be used in a switch
 

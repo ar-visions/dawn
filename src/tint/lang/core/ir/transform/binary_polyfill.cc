@@ -71,7 +71,7 @@ struct State {
                     case BinaryOp::kDivide:
                     case BinaryOp::kModulo:
                         if (config.int_div_mod &&
-                            binary->Result(0)->Type()->is_integer_scalar_or_vector()) {
+                            binary->Result(0)->Type()->IsIntegerScalarOrVector()) {
                             worklist.Push(binary);
                         }
                         break;
@@ -110,7 +110,7 @@ struct State {
     void IntDivMod(ir::CoreBinary* binary) {
         auto* result_ty = binary->Result(0)->Type();
         bool is_div = binary->Op() == BinaryOp::kDivide;
-        bool is_signed = result_ty->is_signed_integer_scalar_or_vector();
+        bool is_signed = result_ty->IsSignedIntegerScalarOrVector();
 
         auto& helpers = is_div ? int_div_helpers : int_mod_helpers;
         auto* helper = helpers.GetOrAdd(result_ty, [&] {
@@ -118,7 +118,7 @@ struct State {
             StringStream name;
             name << "tint_" << (is_div ? "div_" : "mod_");
             if (auto* vec = result_ty->As<type::Vector>()) {
-                name << "v" << vec->Width() << vec->type()->FriendlyName();
+                name << "v" << vec->Width() << vec->Type()->FriendlyName();
             } else {
                 name << result_ty->FriendlyName();
             }
@@ -142,7 +142,7 @@ struct State {
 
                 // Select either the RHS or a constant one value if the RHS is zero.
                 // If this is a signed operation, we also check for `INT_MIN / -1`.
-                auto* bool_ty = ty.match_width(ty.bool_(), result_ty);
+                auto* bool_ty = ty.MatchWidth(ty.bool_(), result_ty);
                 auto* cond = b.Equal(bool_ty, rhs, zero);
                 if (is_signed) {
                     auto* lowest = b.MatchWidth(i32::Lowest(), result_ty);
@@ -201,7 +201,7 @@ struct State {
 }  // namespace
 
 Result<SuccessType> BinaryPolyfill(Module& ir, const BinaryPolyfillConfig& config) {
-    auto result = ValidateAndDumpIfNeeded(ir, "BinaryPolyfill transform");
+    auto result = ValidateAndDumpIfNeeded(ir, "core.BinaryPolyfill");
     if (result != Success) {
         return result;
     }

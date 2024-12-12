@@ -1,5 +1,45 @@
-SKIP: FAILED
+//
+// fragment_main
+//
+struct modf_result_f32 {
+  float fract;
+  float whole;
+};
 
+
+void modf_bbf7f7() {
+  float arg_0 = -1.5f;
+  float v = 0.0f;
+  modf_result_f32 res = {modf(arg_0, v), v};
+}
+
+void fragment_main() {
+  modf_bbf7f7();
+}
+
+//
+// compute_main
+//
+struct modf_result_f32 {
+  float fract;
+  float whole;
+};
+
+
+void modf_bbf7f7() {
+  float arg_0 = -1.5f;
+  float v = 0.0f;
+  modf_result_f32 res = {modf(arg_0, v), v};
+}
+
+[numthreads(1, 1, 1)]
+void compute_main() {
+  modf_bbf7f7();
+}
+
+//
+// vertex_main
+//
 struct modf_result_f32 {
   float fract;
   float whole;
@@ -16,34 +56,21 @@ struct vertex_main_outputs {
 
 void modf_bbf7f7() {
   float arg_0 = -1.5f;
-  modf_result_f32 res = modf(arg_0);
-}
-
-void fragment_main() {
-  modf_bbf7f7();
-}
-
-[numthreads(1, 1, 1)]
-void compute_main() {
-  modf_bbf7f7();
+  float v = 0.0f;
+  modf_result_f32 res = {modf(arg_0, v), v};
 }
 
 VertexOutput vertex_main_inner() {
   VertexOutput tint_symbol = (VertexOutput)0;
   tint_symbol.pos = (0.0f).xxxx;
   modf_bbf7f7();
-  VertexOutput v = tint_symbol;
-  return v;
+  VertexOutput v_1 = tint_symbol;
+  return v_1;
 }
 
 vertex_main_outputs vertex_main() {
-  VertexOutput v_1 = vertex_main_inner();
-  vertex_main_outputs v_2 = {v_1.pos};
-  return v_2;
+  VertexOutput v_2 = vertex_main_inner();
+  vertex_main_outputs v_3 = {v_2.pos};
+  return v_3;
 }
-
-FXC validation failure:
-c:\src\dawn\Shader@0x000001D2B124D2B0(17,25-35): error X3013: 'modf': no matching 1 parameter intrinsic function
-c:\src\dawn\Shader@0x000001D2B124D2B0(17,25-35): error X3013: Possible intrinsic functions are:
-c:\src\dawn\Shader@0x000001D2B124D2B0(17,25-35): error X3013:     modf(float|half|min10float|min16float, out float|half|min10float|min16float ip)
 

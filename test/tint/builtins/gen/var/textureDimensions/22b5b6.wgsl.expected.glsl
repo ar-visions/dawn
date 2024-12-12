@@ -1,94 +1,100 @@
-SKIP: FAILED
-
-#version 310 es
-
-uniform highp usamplerCubeArray arg_0_1;
-layout(binding = 0, std430) buffer prevent_dce_block_ssbo {
-  uvec2 inner;
-} prevent_dce;
-
-void textureDimensions_22b5b6() {
-  int arg_1 = 1;
-  uvec2 res = uvec2(textureSize(arg_0_1, arg_1).xy);
-  prevent_dce.inner = res;
-}
-
-vec4 vertex_main() {
-  textureDimensions_22b5b6();
-  return vec4(0.0f);
-}
-
-void main() {
-  gl_PointSize = 1.0;
-  vec4 inner_result = vertex_main();
-  gl_Position = inner_result;
-  gl_Position.y = -(gl_Position.y);
-  gl_Position.z = ((2.0f * gl_Position.z) - gl_Position.w);
-  return;
-}
-error: Error parsing GLSL shader:
-ERROR: 0:3: 'usamplerCubeArray' : Reserved word. 
-ERROR: 0:3: '' : compilation terminated 
-ERROR: 2 compilation errors.  No code generated.
-
-
-
-#version 310 es
+//
+// fragment_main
+//
+#version 460
 precision highp float;
 precision highp int;
 
-uniform highp usamplerCubeArray arg_0_1;
-layout(binding = 0, std430) buffer prevent_dce_block_ssbo {
+
+struct TintTextureUniformData {
+  uint tint_builtin_value_0;
+};
+
+layout(binding = 0, std430)
+buffer prevent_dce_block_1_ssbo {
   uvec2 inner;
-} prevent_dce;
-
-void textureDimensions_22b5b6() {
+} v;
+layout(binding = 0, std140)
+uniform tint_symbol_1_ubo {
+  TintTextureUniformData inner;
+} v_1;
+uniform highp usamplerCubeArray arg_0;
+uvec2 textureDimensions_22b5b6() {
   int arg_1 = 1;
-  uvec2 res = uvec2(textureSize(arg_0_1, arg_1).xy);
-  prevent_dce.inner = res;
+  uint v_2 = (v_1.inner.tint_builtin_value_0 - 1u);
+  uvec2 res = uvec2(textureSize(arg_0, int(min(uint(arg_1), v_2))).xy);
+  return res;
 }
-
-void fragment_main() {
-  textureDimensions_22b5b6();
-}
-
 void main() {
-  fragment_main();
-  return;
+  v.inner = textureDimensions_22b5b6();
 }
-error: Error parsing GLSL shader:
-ERROR: 0:5: 'usamplerCubeArray' : Reserved word. 
-ERROR: 0:5: '' : compilation terminated 
-ERROR: 2 compilation errors.  No code generated.
+//
+// compute_main
+//
+#version 460
 
 
+struct TintTextureUniformData {
+  uint tint_builtin_value_0;
+};
 
-#version 310 es
-
-uniform highp usamplerCubeArray arg_0_1;
-layout(binding = 0, std430) buffer prevent_dce_block_ssbo {
+layout(binding = 0, std430)
+buffer prevent_dce_block_1_ssbo {
   uvec2 inner;
-} prevent_dce;
-
-void textureDimensions_22b5b6() {
+} v;
+layout(binding = 0, std140)
+uniform tint_symbol_1_ubo {
+  TintTextureUniformData inner;
+} v_1;
+uniform highp usamplerCubeArray arg_0;
+uvec2 textureDimensions_22b5b6() {
   int arg_1 = 1;
-  uvec2 res = uvec2(textureSize(arg_0_1, arg_1).xy);
-  prevent_dce.inner = res;
+  uint v_2 = (v_1.inner.tint_builtin_value_0 - 1u);
+  uvec2 res = uvec2(textureSize(arg_0, int(min(uint(arg_1), v_2))).xy);
+  return res;
 }
-
-void compute_main() {
-  textureDimensions_22b5b6();
-}
-
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 void main() {
-  compute_main();
-  return;
+  v.inner = textureDimensions_22b5b6();
 }
-error: Error parsing GLSL shader:
-ERROR: 0:3: 'usamplerCubeArray' : Reserved word. 
-ERROR: 0:3: '' : compilation terminated 
-ERROR: 2 compilation errors.  No code generated.
+//
+// vertex_main
+//
+#version 460
 
 
+struct TintTextureUniformData {
+  uint tint_builtin_value_0;
+};
 
+struct VertexOutput {
+  vec4 pos;
+  uvec2 prevent_dce;
+};
+
+layout(binding = 0, std140)
+uniform tint_symbol_1_1_ubo {
+  TintTextureUniformData inner;
+} v;
+uniform highp usamplerCubeArray arg_0;
+layout(location = 0) flat out uvec2 vertex_main_loc0_Output;
+uvec2 textureDimensions_22b5b6() {
+  int arg_1 = 1;
+  uint v_1 = (v.inner.tint_builtin_value_0 - 1u);
+  uvec2 res = uvec2(textureSize(arg_0, int(min(uint(arg_1), v_1))).xy);
+  return res;
+}
+VertexOutput vertex_main_inner() {
+  VertexOutput tint_symbol = VertexOutput(vec4(0.0f), uvec2(0u));
+  tint_symbol.pos = vec4(0.0f);
+  tint_symbol.prevent_dce = textureDimensions_22b5b6();
+  return tint_symbol;
+}
+void main() {
+  VertexOutput v_2 = vertex_main_inner();
+  gl_Position = v_2.pos;
+  gl_Position.y = -(gl_Position.y);
+  gl_Position.z = ((2.0f * gl_Position.z) - gl_Position.w);
+  vertex_main_loc0_Output = v_2.prevent_dce;
+  gl_PointSize = 1.0f;
+}

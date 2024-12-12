@@ -64,6 +64,9 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
+    kotlin {
+        explicitApi()
+    }
     compileOptions {
         targetCompatibility JavaVersion.VERSION_17
     }
@@ -72,6 +75,7 @@ android {
             java.srcDirs += "$project.projectDir/../../../out/Debug/gen/java"
         }
     }
+    ndkVersion '27.0.12077973'
 }
 
 dependencies {

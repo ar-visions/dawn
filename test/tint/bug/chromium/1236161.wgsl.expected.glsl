@@ -1,10 +1,8 @@
 #version 310 es
 
+void tint_symbol() {
+  float tint_symbol_1 = 1.0f;
+}
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
-void unused_entry_point() {
-  return;
+void main() {
 }
-void i() {
-  float s = 1.0f;
-}
-

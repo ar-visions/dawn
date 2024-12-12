@@ -26,6 +26,7 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "src/tint/lang/wgsl/resolver/resolver.h"
+#include <iostream>
 
 #include <algorithm>
 #include <cmath>
@@ -70,6 +71,7 @@
 #include "src/tint/lang/wgsl/ast/interpolate_attribute.h"
 #include "src/tint/lang/wgsl/ast/loop_statement.h"
 #include "src/tint/lang/wgsl/ast/return_statement.h"
+#include "src/tint/lang/wgsl/ast/row_major_attribute.h"
 #include "src/tint/lang/wgsl/ast/switch_statement.h"
 #include "src/tint/lang/wgsl/ast/traverse_expressions.h"
 #include "src/tint/lang/wgsl/ast/unary_op_expression.h"
@@ -106,6 +108,7 @@
 #include "src/tint/utils/containers/reverse.h"
 #include "src/tint/utils/containers/transform.h"
 #include "src/tint/utils/containers/vector.h"
+#include "src/tint/utils/internal_limits.h"
 #include "src/tint/utils/macros/compiler.h"
 #include "src/tint/utils/macros/defer.h"
 #include "src/tint/utils/macros/scoped_assignment.h"
@@ -126,15 +129,12 @@ namespace {
 using CtorConvIntrinsic = wgsl::intrinsic::CtorConv;
 using OverloadFlag = core::intrinsic::OverloadFlag;
 
-constexpr int64_t kMaxArrayElementCount = 65536;
 constexpr uint32_t kMaxStatementDepth = 127;
 constexpr size_t kMaxNestDepthOfCompositeType = 255;
 
 }  // namespace
 
-Resolver::Resolver(ProgramBuilder* builder,
-                   const wgsl::AllowedFeatures& allowed_features,
-                   wgsl::ValidationMode mode)
+Resolver::Resolver(ProgramBuilder* builder, const wgsl::AllowedFeatures& allowed_features)
     : b(*builder),
       diagnostics_(builder->Diagnostics()),
       const_eval_(builder->constants, diagnostics_),
@@ -144,7 +144,6 @@ Resolver::Resolver(ProgramBuilder* builder,
                  sem_,
                  enabled_extensions_,
                  allowed_features_,
-                 mode,
                  atomic_composite_info_,
                  valid_type_storage_layouts_),
       allowed_features_(allowed_features) {}
@@ -167,7 +166,7 @@ bool Resolver::Resolve() {
 
     bool result = ResolveInternal();
 
-    if (TINT_UNLIKELY(!result && !diagnostics_.ContainsErrors())) {
+    if (DAWN_UNLIKELY(!result && !diagnostics_.ContainsErrors())) {
         TINT_ICE() << "resolving failed, but no error was raised";
     }
 
@@ -237,7 +236,7 @@ bool Resolver::ResolveInternal() {
 
     bool result = true;
     for (auto* node : b.ASTNodes().Objects()) {
-        if (TINT_UNLIKELY(!marked_[node->node_id.value])) {
+        if (DAWN_UNLIKELY(!marked_[node->node_id.value])) {
             ICE(node->source) << "AST node '" << node->TypeInfo().name
                               << "' was not reached by the resolver\n"
                               << "Pointer: " << node;
@@ -267,7 +266,7 @@ sem::Variable* Resolver::Let(const ast::Let* v) {
     // If the variable has a declared type, resolve it.
     if (v->type) {
         auto* ty = Type(v->type);
-        if (TINT_UNLIKELY(!ty)) {
+        if (DAWN_UNLIKELY(!ty)) {
             return nullptr;
         }
         sem->SetType(ty);
@@ -288,13 +287,13 @@ sem::Variable* Resolver::Let(const ast::Let* v) {
         }
     }
 
-    if (TINT_UNLIKELY(!v->initializer)) {
+    if (DAWN_UNLIKELY(!v->initializer)) {
         AddError(v->source) << style::Keyword("let") << " declaration must have an initializer";
         return nullptr;
     }
 
     auto* rhs = Load(Materialize(ValueExpression(v->initializer), sem->Type()));
-    if (TINT_UNLIKELY(!rhs)) {
+    if (DAWN_UNLIKELY(!rhs)) {
         return nullptr;
     }
     sem->SetInitializer(rhs);
@@ -304,7 +303,7 @@ sem::Variable* Resolver::Let(const ast::Let* v) {
         sem->SetType(rhs->Type()->UnwrapRef());  // Implicit load of RHS
     }
 
-    if (TINT_UNLIKELY(rhs && !validator_.VariableInitializer(v, sem->Type(), rhs))) {
+    if (DAWN_UNLIKELY(rhs && !validator_.VariableInitializer(v, sem->Type(), rhs))) {
         return nullptr;
     }
 
@@ -348,7 +347,7 @@ sem::Variable* Resolver::Override(const ast::Override* v) {
                                            "override initializer"};
         TINT_SCOPED_ASSIGNMENT(expr_eval_stage_constraint_, constraint);
         init = Materialize(ValueExpression(v->initializer), ty);
-        if (TINT_UNLIKELY(!init)) {
+        if (DAWN_UNLIKELY(!init)) {
             return nullptr;
         }
         sem->SetInitializer(init);
@@ -452,7 +451,7 @@ sem::Variable* Resolver::Const(const ast::Const* c, bool is_global) {
         }
     }
 
-    if (TINT_UNLIKELY(!c->initializer)) {
+    if (DAWN_UNLIKELY(!c->initializer)) {
         AddError(c->source) << "'const' declaration must have an initializer";
         return nullptr;
     }
@@ -460,7 +459,7 @@ sem::Variable* Resolver::Const(const ast::Const* c, bool is_global) {
     ExprEvalStageConstraint constraint{core::EvaluationStage::kConstant, "const initializer"};
     TINT_SCOPED_ASSIGNMENT(expr_eval_stage_constraint_, constraint);
     const auto* init = ValueExpression(c->initializer);
-    if (TINT_UNLIKELY(!init)) {
+    if (DAWN_UNLIKELY(!init)) {
         return nullptr;
     }
 
@@ -471,7 +470,7 @@ sem::Variable* Resolver::Const(const ast::Const* c, bool is_global) {
     const core::type::Type* ty = nullptr;
     if (c->type) {
         ty = Type(c->type);
-        if (TINT_UNLIKELY(!ty)) {
+        if (DAWN_UNLIKELY(!ty)) {
             return nullptr;
         }
     }
@@ -479,7 +478,7 @@ sem::Variable* Resolver::Const(const ast::Const* c, bool is_global) {
     if (ty) {
         // If an explicit type was specified, materialize to that type
         init = Materialize(init, ty);
-        if (TINT_UNLIKELY(!init)) {
+        if (DAWN_UNLIKELY(!init)) {
             return nullptr;
         }
     } else {
@@ -534,7 +533,7 @@ sem::Variable* Resolver::Var(const ast::Var* var, bool is_global) {
     const core::type::Type* storage_ty = nullptr;
     if (auto ty = var->type) {
         storage_ty = Type(ty);
-        if (TINT_UNLIKELY(!storage_ty)) {
+        if (DAWN_UNLIKELY(!storage_ty)) {
             return nullptr;
         }
     }
@@ -548,7 +547,7 @@ sem::Variable* Resolver::Var(const ast::Var* var, bool is_global) {
         TINT_SCOPED_ASSIGNMENT(expr_eval_stage_constraint_, constraint);
 
         auto* init = Load(Materialize(ValueExpression(var->initializer), storage_ty));
-        if (TINT_UNLIKELY(!init)) {
+        if (DAWN_UNLIKELY(!init)) {
             return nullptr;
         }
         sem->SetInitializer(init);
@@ -566,7 +565,7 @@ sem::Variable* Resolver::Var(const ast::Var* var, bool is_global) {
 
     if (var->declared_address_space) {
         auto space = AddressSpaceExpression(var->declared_address_space);
-        if (TINT_UNLIKELY(!space)) {
+        if (DAWN_UNLIKELY(!space)) {
             return nullptr;
         }
         sem->SetAddressSpace(space->Value());
@@ -574,7 +573,7 @@ sem::Variable* Resolver::Var(const ast::Var* var, bool is_global) {
         // No declared address space. Infer from usage / type.
         if (!is_global) {
             sem->SetAddressSpace(core::AddressSpace::kFunction);
-        } else if (storage_ty->UnwrapRef()->is_handle()) {
+        } else if (storage_ty->UnwrapRef()->IsHandle()) {
             // https://gpuweb.github.io/gpuweb/wgsl/#module-scope-variables
             // If the store type is a texture type or a sampler type, then the
             // variable declaration must not have a address space attribute. The
@@ -766,7 +765,7 @@ sem::Parameter* Resolver::Parameter(const ast::Parameter* param,
                 attribute,  //
                 [&](const ast::LocationAttribute* attr) {
                     auto value = LocationAttribute(attr);
-                    if (TINT_UNLIKELY(value != Success)) {
+                    if (DAWN_UNLIKELY(value != Success)) {
                         return false;
                     }
                     sem->Attributes().location = value.Get();
@@ -774,7 +773,7 @@ sem::Parameter* Resolver::Parameter(const ast::Parameter* param,
                 },
                 [&](const ast::ColorAttribute* attr) {
                     auto value = ColorAttribute(attr);
-                    if (TINT_UNLIKELY(value != Success)) {
+                    if (DAWN_UNLIKELY(value != Success)) {
                         return false;
                     }
                     sem->Attributes().color = value.Get();
@@ -793,7 +792,7 @@ sem::Parameter* Resolver::Parameter(const ast::Parameter* param,
                         return false;
                     }
                     auto value = GroupAttribute(attr);
-                    if (TINT_UNLIKELY(value != Success)) {
+                    if (DAWN_UNLIKELY(value != Success)) {
                         return false;
                     }
                     group = value.Get();
@@ -806,7 +805,7 @@ sem::Parameter* Resolver::Parameter(const ast::Parameter* param,
                         return false;
                     }
                     auto value = BindingAttribute(attr);
-                    if (TINT_UNLIKELY(value != Success)) {
+                    if (DAWN_UNLIKELY(value != Success)) {
                         return false;
                     }
                     binding = value.Get();
@@ -850,7 +849,7 @@ sem::Parameter* Resolver::Parameter(const ast::Parameter* param,
     }
 
     core::type::Type* ty = Type(param->type);
-    if (TINT_UNLIKELY(!ty)) {
+    if (DAWN_UNLIKELY(!ty)) {
         return nullptr;
     }
     sem->SetType(ty);
@@ -881,6 +880,7 @@ sem::Parameter* Resolver::Parameter(const ast::Parameter* param,
 core::Access Resolver::DefaultAccessForAddressSpace(core::AddressSpace address_space) {
     // https://gpuweb.github.io/gpuweb/wgsl/#storage-class
     switch (address_space) {
+        case core::AddressSpace::kPushConstant:
         case core::AddressSpace::kStorage:
         case core::AddressSpace::kUniform:
         case core::AddressSpace::kHandle:
@@ -942,7 +942,7 @@ bool Resolver::AllocateOverridableConstantIds() {
 void Resolver::SetShadows() {
     for (auto& it : dependencies_.shadows) {
         CastableBase* shadowed = sem_.Get(it.value);
-        if (TINT_UNLIKELY(!shadowed)) {
+        if (DAWN_UNLIKELY(!shadowed)) {
             ICE(it.value->source) << "AST node '" << it.value->TypeInfo().name
                                   << "' had no semantic info\n"
                                   << "Pointer: " << it.value;
@@ -1198,7 +1198,7 @@ sem::Function* Resolver::Function(const ast::Function* decl) {
 
     if (decl->body) {
         Mark(decl->body);
-        if (TINT_UNLIKELY(current_compound_statement_)) {
+        if (DAWN_UNLIKELY(current_compound_statement_)) {
             ICE(decl->body->source)
                 << "Resolver::Function() called with a current compound statement";
         }
@@ -1594,6 +1594,13 @@ sem::Expression* Resolver::Expression(const ast::Expression* root) {
                     auto r = ast::TraverseExpressions(  //
                         (*binary)->rhs, [&](const ast::Expression* e) {
                             not_evaluated_.Add(e);
+                            if (e->Is<ast::IdentifierExpression>()) {
+                                // Template arguments are still evaluated when the outer identifier
+                                // expression is skipped. This happens in expressions like:
+                                //    false && array<T, N>()[i]
+                                // where we still need to evaluate and validate `N`.
+                                return ast::TraverseAction::Skip;
+                            }
                             return ast::TraverseAction::Descend;
                         });
                     if (!r) {
@@ -1630,12 +1637,12 @@ core::type::Type* Resolver::Type(const ast::Expression* ast) {
     TINT_DEFER(on_transitively_reference_global_.Pop());
 
     auto* type_expr = TypeExpression(ast);
-    if (TINT_UNLIKELY(!type_expr)) {
+    if (DAWN_UNLIKELY(!type_expr)) {
         return nullptr;
     }
 
     auto* type = const_cast<core::type::Type*>(type_expr->Type());
-    if (TINT_UNLIKELY(!type)) {
+    if (DAWN_UNLIKELY(!type)) {
         return nullptr;
     }
 
@@ -1651,10 +1658,10 @@ core::type::Type* Resolver::Type(const ast::Expression* ast) {
 sem::BuiltinEnumExpression<core::AddressSpace>* Resolver::AddressSpaceExpression(
     const ast::Expression* expr) {
     auto address_space_expr = sem_.AsAddressSpace(Expression(expr));
-    if (TINT_UNLIKELY(!address_space_expr)) {
+    if (DAWN_UNLIKELY(!address_space_expr)) {
         return nullptr;
     }
-    if (TINT_UNLIKELY(
+    if (DAWN_UNLIKELY(
             address_space_expr->Value() == core::AddressSpace::kPixelLocal &&
             !enabled_extensions_.Contains(wgsl::Extension::kChromiumExperimentalPixelLocal))) {
         AddError(expr->source) << "'pixel_local' address space requires the '"
@@ -1819,7 +1826,7 @@ const core::type::Type* Resolver::ConcreteType(const core::type::Type* ty,
         [&](const core::type::AbstractFloat*) { return target_ty ? target_ty : f32(); },
         [&](const core::type::Vector* v) {
             return Switch(
-                v->type(),  //
+                v->Type(),  //
                 [&](const core::type::AbstractInt*) {
                     return target_ty ? target_ty : i32v(v->Width());
                 },
@@ -1828,9 +1835,9 @@ const core::type::Type* Resolver::ConcreteType(const core::type::Type* ty,
                 });
         },
         [&](const core::type::Matrix* m) {
-            return Switch(m->type(),  //
+            return Switch(m->Type(),  //
                           [&](const core::type::AbstractFloat*) {
-                              return target_ty ? target_ty : f32m(m->columns(), m->rows());
+                              return target_ty ? target_ty : f32m(m->Columns(), m->Rows());
                           });
         },
         [&](const sem::Array* a) -> const core::type::Type* {
@@ -1895,7 +1902,7 @@ const sem::ValueExpression* Resolver::Materialize(
     const core::constant::Value* materialized_val = nullptr;
     if (!not_evaluated_.Contains(decl)) {
         auto expr_val = expr->ConstantValue();
-        if (TINT_UNLIKELY(!expr_val)) {
+        if (DAWN_UNLIKELY(!expr_val)) {
             ICE(decl->source) << "Materialize(" << decl->TypeInfo().name
                               << ") called on expression with no constant value";
         }
@@ -1906,7 +1913,7 @@ const sem::ValueExpression* Resolver::Materialize(
             return nullptr;
         }
         materialized_val = val.Get();
-        if (TINT_UNLIKELY(!materialized_val)) {
+        if (DAWN_UNLIKELY(!materialized_val)) {
             ICE(decl->source) << "ConvertValue(" << expr_val->Type()->FriendlyName() << " -> "
                               << concrete_ty->FriendlyName() << ") returned invalid value";
         }
@@ -1971,6 +1978,23 @@ tint::Result<Vector<const core::constant::Value*, N>> Resolver::ConvertArguments
     return const_args;
 }
 
+template <size_t N>
+const core::constant::Value* Resolver::ConvertConstArgument(
+    const Vector<const sem::ValueExpression*, N>& args,
+    const sem::CallTarget* target,
+    unsigned i) {
+    TINT_ASSERT(i < args.Length());
+    if (const auto* const_arg = args[i]->ConstantValue()) {
+        const auto& params = target->Parameters();
+        TINT_ASSERT(i < params.Length());
+        // If successful, the conversion updates `const_arg`.
+        if (Convert(const_arg, params[i]->Type(), Source{})) {
+            return const_arg;
+        }
+    }
+    return nullptr;
+}
+
 sem::ValueExpression* Resolver::IndexAccessor(const ast::IndexAccessorExpression* expr) {
     auto* idx = Load(Materialize(sem_.GetVal(expr->index)));
     if (!idx) {
@@ -2003,9 +2027,9 @@ sem::ValueExpression* Resolver::IndexAccessor(const ast::IndexAccessorExpression
     auto* ty = Switch(
         storage_ty,  //
         [&](const sem::Array* arr) { return arr->ElemType(); },
-        [&](const core::type::Vector* vec) { return vec->type(); },
+        [&](const core::type::Vector* vec) { return vec->Type(); },
         [&](const core::type::Matrix* mat) {
-            return b.create<core::type::Vector>(mat->type(), mat->rows());
+            return b.create<core::type::Vector>(mat->Type(), mat->Rows());
         },
         [&](Default) {
             AddError(expr->source) << "cannot index type '" << sem_.TypeNameOf(storage_ty) << "'";
@@ -2057,7 +2081,7 @@ sem::Call* Resolver::Call(const ast::CallExpression* expr) {
     // * A value constructor.
     // * A value conversion.
     auto* target = sem_.Get(expr->target);
-    if (TINT_UNLIKELY(!target)) {
+    if (DAWN_UNLIKELY(!target)) {
         return nullptr;
     }
 
@@ -2191,13 +2215,13 @@ sem::Call* Resolver::Call(const ast::CallExpression* expr) {
             [&](const core::type::Vector* v) {
                 if (v->Packed()) {
                     TINT_ASSERT(v->Width() == 3u);
-                    return ctor_or_conv(CtorConvIntrinsic::kPackedVec3, Vector{v->type()});
+                    return ctor_or_conv(CtorConvIntrinsic::kPackedVec3, Vector{v->Type()});
                 }
-                return ctor_or_conv(wgsl::intrinsic::VectorCtorConv(v->Width()), Vector{v->type()});
+                return ctor_or_conv(wgsl::intrinsic::VectorCtorConv(v->Width()), Vector{v->Type()});
             },
             [&](const core::type::Matrix* m) {
-                return ctor_or_conv(wgsl::intrinsic::MatrixCtorConv(m->columns(), m->rows()),
-                                    Vector{m->type()});
+                return ctor_or_conv(wgsl::intrinsic::MatrixCtorConv(m->Columns(), m->Rows()),
+                                    Vector{m->Type()});
             },
             [&](const sem::Array* arr) -> sem::Call* {
                 auto* call_target = array_ctors_.GetOrAdd(
@@ -2211,11 +2235,11 @@ sem::Call* Resolver::Call(const ast::CallExpression* expr) {
                         return b.create<sem::ValueConstructor>(arr, std::move(params), args_stage);
                     });
 
-                if (TINT_UNLIKELY(!MaybeMaterializeAndLoadArguments(args, call_target))) {
+                if (DAWN_UNLIKELY(!MaybeMaterializeAndLoadArguments(args, call_target))) {
                     return nullptr;
                 }
 
-                if (TINT_UNLIKELY(!validator_.ArrayConstructor(expr, arr))) {
+                if (DAWN_UNLIKELY(!validator_.ArrayConstructor(expr, arr))) {
                     return nullptr;
                 }
 
@@ -2236,11 +2260,11 @@ sem::Call* Resolver::Call(const ast::CallExpression* expr) {
                         return b.create<sem::ValueConstructor>(str, std::move(params), args_stage);
                     });
 
-                if (TINT_UNLIKELY(!MaybeMaterializeAndLoadArguments(args, call_target))) {
+                if (DAWN_UNLIKELY(!MaybeMaterializeAndLoadArguments(args, call_target))) {
                     return nullptr;
                 }
 
-                if (TINT_UNLIKELY(!validator_.StructureInitializer(expr, str))) {
+                if (DAWN_UNLIKELY(!validator_.StructureInitializer(expr, str))) {
                     return nullptr;
                 }
 
@@ -2286,7 +2310,7 @@ sem::Call* Resolver::Call(const ast::CallExpression* expr) {
                 auto arg_tys =
                     tint::Transform(args, [](auto* arg) { return arg->Type()->UnwrapRef(); });
                 auto el_ty = core::type::Type::Common(arg_tys);
-                if (TINT_UNLIKELY(!el_ty)) {
+                if (DAWN_UNLIKELY(!el_ty)) {
                     AddError(expr->source)
                         << "cannot infer common array element type from constructor arguments";
                     Hashset<const core::type::Type*, 8> types;
@@ -2301,7 +2325,7 @@ sem::Call* Resolver::Call(const ast::CallExpression* expr) {
                 }
                 auto* arr = Array(expr->source, expr->source, expr->source, el_ty, el_count,
                                   /* explicit_stride */ 0);
-                if (TINT_UNLIKELY(!arr)) {
+                if (DAWN_UNLIKELY(!arr)) {
                     return nullptr;
                 }
                 return ty_init_or_conv(arr);
@@ -2323,7 +2347,7 @@ sem::Call* Resolver::Call(const ast::CallExpression* expr) {
                 ty_expr->Type(),  //
                 [&](const IncompleteType* t) -> sem::Call* {
                     auto* ctor = incomplete_type(t);
-                    if (TINT_UNLIKELY(!ctor)) {
+                    if (DAWN_UNLIKELY(!ctor)) {
                         return nullptr;
                     }
                     // Replace incomplete type with resolved type
@@ -2360,7 +2384,7 @@ sem::Call* Resolver::BuiltinCall(const ast::CallExpression* expr,
     if (auto* tmpl = expr->target->identifier->As<ast::TemplatedIdentifier>()) {
         for (auto* arg : tmpl->arguments) {
             auto* arg_ty = sem_.AsTypeExpression(sem_.Get(arg));
-            if (TINT_UNLIKELY(!arg_ty)) {
+            if (DAWN_UNLIKELY(!arg_ty)) {
                 return nullptr;
             }
             tmpl_args.Push(arg_ty->Type());
@@ -2467,6 +2491,20 @@ sem::Call* Resolver::BuiltinCall(const ast::CallExpression* expr,
                 return nullptr;
             }
             break;
+        case wgsl::BuiltinFn::kSubgroupShuffle:
+        case wgsl::BuiltinFn::kSubgroupShuffleUp:
+        case wgsl::BuiltinFn::kSubgroupShuffleDown:
+        case wgsl::BuiltinFn::kSubgroupShuffleXor:
+            if (!validator_.SubgroupShuffleFunction(fn, call)) {
+                return nullptr;
+            }
+            break;
+
+        case wgsl::BuiltinFn::kQuadBroadcast:
+            if (!validator_.QuadBroadcast(call)) {
+                return nullptr;
+            }
+            break;
 
         case wgsl::BuiltinFn::kAtomicLoad:
             RegisterLoad(args[0]);
@@ -2493,6 +2531,76 @@ sem::Call* Resolver::BuiltinCall(const ast::CallExpression* expr,
             break;
     }
 
+    // Check for errors when only some arguments are const or override.
+    // Const-eval checks error cases when all arguments are const or override.
+    switch (fn) {
+        case wgsl::BuiltinFn::kClamp: {
+            const auto* lowConst = ConvertConstArgument(args, target, 1);
+            const auto* highConst = ConvertConstArgument(args, target, 2);
+            if (lowConst && highConst) {
+                // Delegate error checking to the const-eval function, but use a harmless
+                // first argument.
+                auto fakeArgs = Vector{lowConst, lowConst, highConst};
+                auto res = const_eval_.clamp(call->Type(), fakeArgs, call->Declaration()->source);
+                if (res != Success) {
+                    return nullptr;
+                }
+            }
+        } break;
+        case wgsl::BuiltinFn::kLdexp:
+            if (auto* exponentConst = ConvertConstArgument(args, target, 1)) {
+                auto* zero = const_eval_.Zero(call->Type(), {}, Source{}).Get();
+                auto fakeArgs = Vector{zero, exponentConst};
+                auto res = const_eval_.ldexp(call->Type(), fakeArgs, call->Declaration()->source);
+                if (res != Success) {
+                    return nullptr;
+                }
+            }
+            break;
+        case wgsl::BuiltinFn::kExtractBits: {
+            auto* offsetConst = ConvertConstArgument(args, target, 1);
+            auto* countConst = ConvertConstArgument(args, target, 2);
+            if (offsetConst && countConst) {
+                auto* zero = const_eval_.Zero(call->Type(), {}, Source{}).Get();
+                auto fakeArgs = Vector{zero, offsetConst, countConst};
+                auto res =
+                    const_eval_.extractBits(call->Type(), fakeArgs, call->Declaration()->source);
+                if (res != Success) {
+                    return nullptr;
+                }
+            }
+        } break;
+        case wgsl::BuiltinFn::kInsertBits: {
+            auto* offsetConst = ConvertConstArgument(args, target, 2);
+            auto* countConst = ConvertConstArgument(args, target, 3);
+            if (offsetConst && countConst) {
+                auto* zero = const_eval_.Zero(call->Type(), {}, Source{}).Get();
+                auto fakeArgs = Vector{zero, zero, offsetConst, countConst};
+                auto res =
+                    const_eval_.insertBits(call->Type(), fakeArgs, call->Declaration()->source);
+                if (res != Success) {
+                    return nullptr;
+                }
+            }
+        } break;
+        case wgsl::BuiltinFn::kSmoothstep: {
+            auto* lowConst = ConvertConstArgument(args, target, 0);
+            auto* highConst = ConvertConstArgument(args, target, 1);
+            if (lowConst && highConst) {
+                // Delegate error checking to the const-eval function, but use a harmless
+                // last argument.
+                auto fakeArgs = Vector{lowConst, highConst, highConst};
+                auto res =
+                    const_eval_.smoothstep(call->Type(), fakeArgs, call->Declaration()->source);
+                if (res != Success) {
+                    return nullptr;
+                }
+            }
+        } break;
+        default:
+            break;
+    }
+
     if (!validator_.BuiltinCall(call)) {
         return nullptr;
     }
@@ -2503,7 +2611,7 @@ sem::Call* Resolver::BuiltinCall(const ast::CallExpression* expr,
 core::type::Type* Resolver::BuiltinType(core::BuiltinType builtin_ty,
                                         const ast::Identifier* ident) {
     auto check_no_tmpl_args = [&](core::type::Type* ty) -> core::type::Type* {
-        return TINT_LIKELY(CheckNotTemplated("type", ident)) ? ty : nullptr;
+        return DAWN_LIKELY(CheckNotTemplated("type", ident)) ? ty : nullptr;
     };
 
     switch (builtin_ty) {
@@ -2736,10 +2844,10 @@ core::type::F16* Resolver::F16(const ast::Identifier* ident) {
 }
 
 core::type::Vector* Resolver::Vec(const ast::Identifier* ident, core::type::Type* el, uint32_t n) {
-    if (TINT_UNLIKELY(!el)) {
+    if (DAWN_UNLIKELY(!el)) {
         return nullptr;
     }
-    if (TINT_UNLIKELY(!validator_.Vector(el, ident->source))) {
+    if (DAWN_UNLIKELY(!validator_.Vector(el, ident->source))) {
         return nullptr;
     }
     return b.create<core::type::Vector>(el, n);
@@ -2754,12 +2862,12 @@ core::type::Type* Resolver::VecT(const ast::Identifier* ident,
         return b.create<IncompleteType>(builtin);
     }
 
-    if (TINT_UNLIKELY(!CheckTemplatedIdentifierArgs(tmpl_ident, 1))) {
+    if (DAWN_UNLIKELY(!CheckTemplatedIdentifierArgs(tmpl_ident, 1))) {
         return nullptr;
     }
 
     auto* ty = sem_.GetType(tmpl_ident->arguments[0]);
-    if (TINT_UNLIKELY(!ty)) {
+    if (DAWN_UNLIKELY(!ty)) {
         return nullptr;
     }
 
@@ -2770,10 +2878,10 @@ core::type::Matrix* Resolver::Mat(const ast::Identifier* ident,
                                   core::type::Type* el,
                                   uint32_t num_columns,
                                   uint32_t num_rows) {
-    if (TINT_UNLIKELY(!el)) {
+    if (DAWN_UNLIKELY(!el)) {
         return nullptr;
     }
-    if (TINT_UNLIKELY(!validator_.Matrix(el, ident->source))) {
+    if (DAWN_UNLIKELY(!validator_.Matrix(el, ident->source))) {
         return nullptr;
     }
     auto* column = Vec(ident, el, num_rows);
@@ -2793,12 +2901,12 @@ core::type::Type* Resolver::MatT(const ast::Identifier* ident,
         return b.create<IncompleteType>(builtin);
     }
 
-    if (TINT_UNLIKELY(!CheckTemplatedIdentifierArgs(tmpl_ident, 1))) {
+    if (DAWN_UNLIKELY(!CheckTemplatedIdentifierArgs(tmpl_ident, 1))) {
         return nullptr;
     }
 
     auto* el_ty = sem_.GetType(tmpl_ident->arguments[0]);
-    if (TINT_UNLIKELY(!el_ty)) {
+    if (DAWN_UNLIKELY(!el_ty)) {
         return nullptr;
     }
 
@@ -2812,7 +2920,7 @@ core::type::Type* Resolver::Array(const ast::Identifier* ident) {
         return b.create<IncompleteType>(core::BuiltinType::kArray);
     }
 
-    if (TINT_UNLIKELY(!CheckTemplatedIdentifierArgs(tmpl_ident, 1, 2))) {
+    if (DAWN_UNLIKELY(!CheckTemplatedIdentifierArgs(tmpl_ident, 1, 2))) {
         return nullptr;
     }
     auto* ast_el_ty = tmpl_ident->arguments[0];
@@ -2856,17 +2964,17 @@ core::type::Type* Resolver::Array(const ast::Identifier* ident) {
 
 core::type::Atomic* Resolver::Atomic(const ast::Identifier* ident) {
     auto* tmpl_ident = TemplatedIdentifier(ident, 1);  // atomic<type>
-    if (TINT_UNLIKELY(!tmpl_ident)) {
+    if (DAWN_UNLIKELY(!tmpl_ident)) {
         return nullptr;
     }
 
     auto* el_ty = sem_.GetType(tmpl_ident->arguments[0]);
-    if (TINT_UNLIKELY(!el_ty)) {
+    if (DAWN_UNLIKELY(!el_ty)) {
         return nullptr;
     }
 
     auto* out = b.create<core::type::Atomic>(el_ty);
-    if (TINT_UNLIKELY(!validator_.Atomic(tmpl_ident, out))) {
+    if (DAWN_UNLIKELY(!validator_.Atomic(tmpl_ident, out))) {
         return nullptr;
     }
     return out;
@@ -2874,24 +2982,24 @@ core::type::Atomic* Resolver::Atomic(const ast::Identifier* ident) {
 
 core::type::Pointer* Resolver::Ptr(const ast::Identifier* ident) {
     auto* tmpl_ident = TemplatedIdentifier(ident, 2, 3);  // ptr<address, type [, access]>
-    if (TINT_UNLIKELY(!tmpl_ident)) {
+    if (DAWN_UNLIKELY(!tmpl_ident)) {
         return nullptr;
     }
 
     auto address_space = sem_.GetAddressSpace(tmpl_ident->arguments[0]);
-    if (TINT_UNLIKELY(address_space == core::AddressSpace::kUndefined)) {
+    if (DAWN_UNLIKELY(address_space == core::AddressSpace::kUndefined)) {
         return nullptr;
     }
 
     auto* store_ty = const_cast<core::type::Type*>(sem_.GetType(tmpl_ident->arguments[1]));
-    if (TINT_UNLIKELY(!store_ty)) {
+    if (DAWN_UNLIKELY(!store_ty)) {
         return nullptr;
     }
 
     core::Access access = core::Access::kUndefined;
     if (tmpl_ident->arguments.Length() > 2) {
         access = sem_.GetAccess(tmpl_ident->arguments[2]);
-        if (TINT_UNLIKELY(access == core::Access::kUndefined)) {
+        if (DAWN_UNLIKELY(access == core::Access::kUndefined)) {
             return nullptr;
         }
     } else {
@@ -2899,7 +3007,7 @@ core::type::Pointer* Resolver::Ptr(const ast::Identifier* ident) {
     }
 
     auto* out = b.create<core::type::Pointer>(address_space, store_ty, access);
-    if (TINT_UNLIKELY(!validator_.Pointer(tmpl_ident, out))) {
+    if (DAWN_UNLIKELY(!validator_.Pointer(tmpl_ident, out))) {
         return nullptr;
     }
 
@@ -2913,12 +3021,12 @@ core::type::Pointer* Resolver::Ptr(const ast::Identifier* ident) {
 core::type::SampledTexture* Resolver::SampledTexture(const ast::Identifier* ident,
                                                      core::type::TextureDimension dim) {
     auto* tmpl_ident = TemplatedIdentifier(ident, 1);
-    if (TINT_UNLIKELY(!tmpl_ident)) {
+    if (DAWN_UNLIKELY(!tmpl_ident)) {
         return nullptr;
     }
 
     auto* ty_expr = sem_.GetType(tmpl_ident->arguments[0]);
-    if (TINT_UNLIKELY(!ty_expr)) {
+    if (DAWN_UNLIKELY(!ty_expr)) {
         return nullptr;
     }
 
@@ -2929,12 +3037,12 @@ core::type::SampledTexture* Resolver::SampledTexture(const ast::Identifier* iden
 core::type::MultisampledTexture* Resolver::MultisampledTexture(const ast::Identifier* ident,
                                                                core::type::TextureDimension dim) {
     auto* tmpl_ident = TemplatedIdentifier(ident, 1);
-    if (TINT_UNLIKELY(!tmpl_ident)) {
+    if (DAWN_UNLIKELY(!tmpl_ident)) {
         return nullptr;
     }
 
     auto* ty_expr = sem_.GetType(tmpl_ident->arguments[0]);
-    if (TINT_UNLIKELY(!ty_expr)) {
+    if (DAWN_UNLIKELY(!ty_expr)) {
         return nullptr;
     }
 
@@ -2945,17 +3053,17 @@ core::type::MultisampledTexture* Resolver::MultisampledTexture(const ast::Identi
 core::type::StorageTexture* Resolver::StorageTexture(const ast::Identifier* ident,
                                                      core::type::TextureDimension dim) {
     auto* tmpl_ident = TemplatedIdentifier(ident, 2);
-    if (TINT_UNLIKELY(!tmpl_ident)) {
+    if (DAWN_UNLIKELY(!tmpl_ident)) {
         return nullptr;
     }
 
     auto format = sem_.GetTexelFormat(tmpl_ident->arguments[0]);
-    if (TINT_UNLIKELY(format == core::TexelFormat::kUndefined)) {
+    if (DAWN_UNLIKELY(format == core::TexelFormat::kUndefined)) {
         return nullptr;
     }
 
     auto access = sem_.GetAccess(tmpl_ident->arguments[1]);
-    if (TINT_UNLIKELY(access == core::Access::kUndefined)) {
+    if (DAWN_UNLIKELY(access == core::Access::kUndefined)) {
         return nullptr;
     }
 
@@ -2970,12 +3078,12 @@ core::type::StorageTexture* Resolver::StorageTexture(const ast::Identifier* iden
 
 core::type::InputAttachment* Resolver::InputAttachment(const ast::Identifier* ident) {
     auto* tmpl_ident = TemplatedIdentifier(ident, 1);
-    if (TINT_UNLIKELY(!tmpl_ident)) {
+    if (DAWN_UNLIKELY(!tmpl_ident)) {
         return nullptr;
     }
 
     auto* ty_expr = sem_.GetType(tmpl_ident->arguments[0]);
-    if (TINT_UNLIKELY(!ty_expr)) {
+    if (DAWN_UNLIKELY(!ty_expr)) {
         return nullptr;
     }
 
@@ -2985,16 +3093,16 @@ core::type::InputAttachment* Resolver::InputAttachment(const ast::Identifier* id
 
 core::type::Vector* Resolver::PackedVec3T(const ast::Identifier* ident) {
     auto* tmpl_ident = TemplatedIdentifier(ident, 1);
-    if (TINT_UNLIKELY(!tmpl_ident)) {
+    if (DAWN_UNLIKELY(!tmpl_ident)) {
         return nullptr;
     }
 
     auto* el_ty = sem_.GetType(tmpl_ident->arguments[0]);
-    if (TINT_UNLIKELY(!el_ty)) {
+    if (DAWN_UNLIKELY(!el_ty)) {
         return nullptr;
     }
 
-    if (TINT_UNLIKELY(!validator_.Vector(el_ty, ident->source))) {
+    if (DAWN_UNLIKELY(!validator_.Vector(el_ty, ident->source))) {
         return nullptr;
     }
     return b.create<core::type::Vector>(el_ty, 3u, true);
@@ -3005,7 +3113,7 @@ const ast::TemplatedIdentifier* Resolver::TemplatedIdentifier(const ast::Identif
                                                               size_t max_args /* = use min 0 */) {
     auto* tmpl_ident = ident->As<ast::TemplatedIdentifier>();
     if (!tmpl_ident) {
-        if (TINT_UNLIKELY(min_args != 0)) {
+        if (DAWN_UNLIKELY(min_args != 0)) {
             AddError(Source{ident->source.range.end}) << "expected " << style::Code("<") << " for "
                                                       << style::Code(ident->symbol.NameView());
         }
@@ -3021,18 +3129,18 @@ bool Resolver::CheckTemplatedIdentifierArgs(const ast::TemplatedIdentifier* iden
         max_args = min_args;
     }
     if (min_args == max_args) {
-        if (TINT_UNLIKELY(ident->arguments.Length() != min_args)) {
+        if (DAWN_UNLIKELY(ident->arguments.Length() != min_args)) {
             AddError(ident->source) << style::Code(ident->symbol.NameView()) << " requires "
                                     << min_args << " template arguments";
             return false;
         }
     } else {
-        if (TINT_UNLIKELY(ident->arguments.Length() < min_args)) {
+        if (DAWN_UNLIKELY(ident->arguments.Length() < min_args)) {
             AddError(ident->source) << style::Code(ident->symbol.NameView())
                                     << " requires at least " << min_args << " template arguments";
             return false;
         }
-        if (TINT_UNLIKELY(ident->arguments.Length() > max_args)) {
+        if (DAWN_UNLIKELY(ident->arguments.Length() > max_args)) {
             AddError(ident->source) << style::Code(ident->symbol.NameView()) << " requires at most "
                                     << max_args << " template arguments";
             return false;
@@ -3065,7 +3173,7 @@ void Resolver::CollectTextureSamplerPairs(const sem::BuiltinFn* builtin,
     // Collect a texture/sampler pair for this builtin.
     const auto& signature = builtin->Signature();
     int texture_index = signature.IndexOf(core::ParameterUsage::kTexture);
-    if (TINT_UNLIKELY(texture_index == -1)) {
+    if (DAWN_UNLIKELY(texture_index == -1)) {
         TINT_ICE() << "texture builtin without texture parameter";
     }
     if (auto* user =
@@ -3143,47 +3251,18 @@ void Resolver::CollectTextureSamplerPairs(sem::Function* func,
     // argument passed to the current function. Leave global variables
     // as-is. Then add the mapped pair to the current function's list of
     // texture/sampler pairs.
-
-    Hashset<const sem::Variable*, 4> texture_sampler_set;
-
     for (sem::VariablePair pair : func->TextureSamplerPairs()) {
         const sem::Variable* texture = pair.first;
         const sem::Variable* sampler = pair.second;
-        if (auto* param = As<sem::Parameter>(texture)) {
+        if (auto* param = texture->As<sem::Parameter>()) {
             texture = args[param->Index()]->UnwrapLoad()->As<sem::VariableUser>()->Variable();
-            texture_sampler_set.Add(texture);
         }
-        if (auto* param = As<sem::Parameter>(sampler)) {
-            sampler = args[param->Index()]->UnwrapLoad()->As<sem::VariableUser>()->Variable();
-            texture_sampler_set.Add(sampler);
+        if (sampler) {
+            if (auto* param = sampler->As<sem::Parameter>()) {
+                sampler = args[param->Index()]->UnwrapLoad()->As<sem::VariableUser>()->Variable();
+            }
         }
         current_function_->AddTextureSamplerPair(texture, sampler);
-    }
-
-    // Add any possible texture/sampler not essentially passed to builtins from the function param.
-    // This could be unused texture/sampler or texture/sampler passed to builtins that are emulated.
-
-    const auto& signature = func->Signature();
-
-    for (size_t i = 0; i < signature.parameters.Length(); i++) {
-        auto* param = signature.parameters[i];
-        if (param->Type()->Is<core::type::Texture>()) {
-            auto* user = args[i]->UnwrapLoad()->As<sem::VariableUser>();
-            auto* texture = user->Variable();
-            if (!texture_sampler_set.Contains(texture)) {
-                current_function_->AddTextureSamplerPair(texture, nullptr);
-                func->AddTextureSamplerPair(param, nullptr);
-                texture_sampler_set.Add(texture);
-            }
-        } else if (param->Type()->Is<core::type::Sampler>()) {
-            auto* user = args[i]->UnwrapLoad()->As<sem::VariableUser>();
-            auto* sampler = user->Variable();
-            if (!texture_sampler_set.Contains(sampler)) {
-                current_function_->AddTextureSamplerPair(nullptr, sampler);
-                func->AddTextureSamplerPair(nullptr, param);
-                texture_sampler_set.Add(sampler);
-            }
-        }
     }
 }
 
@@ -3270,7 +3349,7 @@ sem::Expression* Resolver::Identifier(const ast::IdentifierExpression* expr) {
         return Switch(
             resolved_node,  //
             [&](sem::Variable* variable) -> sem::VariableUser* {
-                if (!TINT_LIKELY(CheckNotTemplated("variable", ident))) {
+                if (!DAWN_LIKELY(CheckNotTemplated("variable", ident))) {
                     return nullptr;
                 }
 
@@ -3337,7 +3416,7 @@ sem::Expression* Resolver::Identifier(const ast::IdentifierExpression* expr) {
             },
             [&](const core::type::Type* ty) -> sem::TypeExpression* {
                 // User declared types cannot be templated.
-                if (!TINT_LIKELY(CheckNotTemplated("type", ident))) {
+                if (!DAWN_LIKELY(CheckNotTemplated("type", ident))) {
                     return nullptr;
                 }
 
@@ -3353,7 +3432,7 @@ sem::Expression* Resolver::Identifier(const ast::IdentifierExpression* expr) {
                 return b.create<sem::TypeExpression>(expr, current_statement_, ty);
             },
             [&](const sem::Function* fn) -> sem::FunctionExpression* {
-                if (!TINT_LIKELY(CheckNotTemplated("function", ident))) {
+                if (!DAWN_LIKELY(CheckNotTemplated("function", ident))) {
                     return nullptr;
                 }
                 return b.create<sem::FunctionExpression>(expr, current_statement_, fn);
@@ -3519,7 +3598,7 @@ sem::ValueExpression* Resolver::MemberAccessor(const ast::MemberAccessorExpressi
             const sem::ValueExpression* obj_expr = object;
             if (size == 1) {
                 // A single element swizzle is just the type of the vector.
-                ty = vec->type();
+                ty = vec->Type();
                 // If we're extracting from a memory view, we return a reference.
                 if (memory_view) {
                     ty = b.create<core::type::Reference>(memory_view->AddressSpace(), ty,
@@ -3528,7 +3607,7 @@ sem::ValueExpression* Resolver::MemberAccessor(const ast::MemberAccessorExpressi
             } else {
                 // The vector will have a number of components equal to the length of
                 // the swizzle.
-                ty = b.create<core::type::Vector>(vec->type(), static_cast<uint32_t>(size));
+                ty = b.create<core::type::Vector>(vec->Type(), static_cast<uint32_t>(size));
 
                 if (obj_expr->Type()->Is<core::type::Pointer>()) {
                     // If the LHS is a pointer, the load rule is invoked. We special case this
@@ -3675,7 +3754,7 @@ sem::ValueExpression* Resolver::UnaryOp(const ast::UnaryOpExpression* unary) {
     switch (unary->op) {
         case core::UnaryOp::kAddressOf:
             if (auto* ref = expr_ty->As<core::type::Reference>()) {
-                if (ref->StoreType()->UnwrapRef()->is_handle()) {
+                if (ref->StoreType()->UnwrapRef()->IsHandle()) {
                     AddError(unary->expr->source)
                         << "cannot take the address of " << sem_.Describe(expr)
                         << " in handle address space";
@@ -4109,10 +4188,7 @@ const core::type::ArrayCount* Resolver::ArrayCount(const ast::Expression* count_
 
     switch (count_sem->Stage()) {
         case core::EvaluationStage::kNotEvaluated:
-            // Happens in expressions like:
-            //    false && array<T, N>()[i]
-            // The end result will not be used, so just make N=1.
-            return b.create<core::type::ConstantArrayCount>(static_cast<uint32_t>(1));
+            ICE(count_expr->source) << "array element count was not evaluated";
 
         case core::EvaluationStage::kOverride: {
             // array count is an override expression.
@@ -4127,7 +4203,7 @@ const core::type::ArrayCount* Resolver::ArrayCount(const ast::Expression* count_
 
         case core::EvaluationStage::kConstant: {
             auto* count_val = count_sem->ConstantValue();
-            if (auto* ty = count_val->Type(); !ty->is_integer_scalar()) {
+            if (auto* ty = count_val->Type(); !ty->IsIntegerScalar()) {
                 AddError(count_expr->source)
                     << "array count must evaluate to a constant integer expression, but is type "
                     << style::Type(ty->FriendlyName());
@@ -4234,10 +4310,10 @@ sem::Array* Resolver::Array(const Source& array_source,
 
 core::type::Type* Resolver::Alias(const ast::Alias* alias) {
     auto* ty = Type(alias->type);
-    if (TINT_UNLIKELY(!ty)) {
+    if (DAWN_UNLIKELY(!ty)) {
         return nullptr;
     }
-    if (TINT_UNLIKELY(!validator_.Alias(alias))) {
+    if (DAWN_UNLIKELY(!validator_.Alias(alias))) {
         return nullptr;
     }
     return ty;
@@ -4471,6 +4547,19 @@ sem::Struct* Resolver::Structure(const ast::Struct* str) {
                     attributes.invariant = true;
                     return true;
                 },
+                [&](const ast::RowMajorAttribute* attr) {
+                    const auto* element_type = type;
+                    while (auto* arr = element_type->As<core::type::Array>()) {
+                        element_type = arr->ElemType();
+                    }
+                    if (!element_type->Is<core::type::Matrix>()) {
+                        AddError(attr->source)
+                            << style::Attribute("@row_major")
+                            << " can only be applied to matrices or arrays of matrices";
+                        return false;
+                    }
+                    return true;
+                },
                 [&](const ast::StrideAttribute* attr) {
                     if (validator_.IsValidationEnabled(
                             member->attributes, ast::DisabledValidation::kIgnoreStrideAttribute)) {
@@ -4525,7 +4614,7 @@ sem::Struct* Resolver::Structure(const ast::Struct* str) {
                               << ") must not exceed 0xffffffff bytes";
         return nullptr;
     }
-    if (TINT_UNLIKELY(struct_align > std::numeric_limits<uint32_t>::max())) {
+    if (DAWN_UNLIKELY(struct_align > std::numeric_limits<uint32_t>::max())) {
         ICE(str->source) << "calculated struct stride exceeds uint32";
     }
 
@@ -4631,7 +4720,7 @@ sem::SwitchStatement* Resolver::SwitchStatement(const ast::SwitchStatement* stmt
             }
         }
         auto* common_ty = core::type::Type::Common(types);
-        if (!common_ty || !common_ty->is_integer_scalar()) {
+        if (!common_ty || !common_ty->IsIntegerScalar()) {
             // No common type found or the common type was abstract.
             // Pick i32 and let validation deal with any mismatches.
             common_ty = b.create<core::type::I32>();
@@ -4894,9 +4983,9 @@ bool Resolver::ApplyAddressSpaceUsageToType(core::AddressSpace address_space,
             }
 
             auto count = arr->ConstantCount();
-            if (count.has_value() && count.value() >= kMaxArrayElementCount) {
+            if (count.has_value() && count.value() >= internal_limits::kMaxArrayElementCount) {
                 AddError(usage) << "array count (" << count.value() << ") must be less than "
-                                << kMaxArrayElementCount;
+                                << internal_limits::kMaxArrayElementCount;
                 return false;
             }
         }
@@ -4989,11 +5078,11 @@ SEM* Resolver::StatementScope(const ast::Statement* ast, SEM* sem, F&& callback)
 }
 
 bool Resolver::Mark(const ast::Node* node) {
-    if (TINT_UNLIKELY(node == nullptr)) {
+    if (DAWN_UNLIKELY(node == nullptr)) {
         TINT_ICE() << "Resolver::Mark() called with nullptr";
     }
     auto marked_bit_ref = marked_[node->node_id.value];
-    if (TINT_LIKELY(!marked_bit_ref)) {
+    if (DAWN_LIKELY(!marked_bit_ref)) {
         marked_bit_ref = true;
         return true;
     }
@@ -5010,7 +5099,7 @@ void Resolver::ApplyDiagnosticSeverities(NODE* node) {
 }
 
 bool Resolver::CheckNotTemplated(const char* use, const ast::Identifier* ident) {
-    if (TINT_UNLIKELY(ident->Is<ast::TemplatedIdentifier>())) {
+    if (DAWN_UNLIKELY(ident->Is<ast::TemplatedIdentifier>())) {
         AddError(ident->source) << use << " " << style::Code(ident->symbol.NameView())
                                 << " does not take template arguments";
         if (auto resolved = dependencies_.resolved_identifiers.Get(ident)) {

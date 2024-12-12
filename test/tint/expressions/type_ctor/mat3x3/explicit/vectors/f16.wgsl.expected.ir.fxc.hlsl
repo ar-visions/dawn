@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 
 static matrix<float16_t, 3, 3> m = matrix<float16_t, 3, 3>(vector<float16_t, 3>(float16_t(0.0h), float16_t(1.0h), float16_t(2.0h)), vector<float16_t, 3>(float16_t(3.0h), float16_t(4.0h), float16_t(5.0h)), vector<float16_t, 3>(float16_t(6.0h), float16_t(7.0h), float16_t(8.0h)));
@@ -15,5 +15,7 @@ void f() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x0000016D7037E2B0(2,15-23): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(2,15-23): error X3000: syntax error: unexpected token 'float16_t'
 
+
+tint executable returned error: exit status 1

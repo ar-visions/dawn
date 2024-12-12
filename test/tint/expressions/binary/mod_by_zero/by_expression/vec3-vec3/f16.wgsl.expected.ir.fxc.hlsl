@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 
 [numthreads(1, 1, 1)]
@@ -13,11 +13,13 @@ void f() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x00000165942D58A0(4,10-18): error X3000: syntax error: unexpected token 'float16_t'
-c:\src\dawn\Shader@0x00000165942D58A0(5,10-18): error X3000: syntax error: unexpected token 'float16_t'
-c:\src\dawn\Shader@0x00000165942D58A0(6,10-18): error X3000: syntax error: unexpected token 'float16_t'
-c:\src\dawn\Shader@0x00000165942D58A0(7,10-18): error X3000: syntax error: unexpected token 'float16_t'
-c:\src\dawn\Shader@0x00000165942D58A0(8,10-18): error X3000: syntax error: unexpected token 'float16_t'
-c:\src\dawn\Shader@0x00000165942D58A0(9,10-18): error X3000: syntax error: unexpected token 'float16_t'
-c:\src\dawn\Shader@0x00000165942D58A0(10,10-18): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(4,10-18): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(5,10-18): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(6,10-18): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(7,10-18): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(8,10-18): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(9,10-18): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(10,10-18): error X3000: syntax error: unexpected token 'float16_t'
 
+
+tint executable returned error: exit status 1

@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 
 uint tint_bitcast_from_f16(vector<float16_t, 2> src) {
@@ -13,7 +13,9 @@ void f() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x0000023C44500800(2,35-43): error X3000: syntax error: unexpected token 'float16_t'
-c:\src\dawn\Shader@0x0000023C44500800(3,29-31): error X3004: undeclared identifier 'src'
-c:\src\dawn\Shader@0x0000023C44500800(3,22-32): error X3014: incorrect number of arguments to numeric-type constructor
+<scrubbed_path>(2,35-43): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(3,29-31): error X3004: undeclared identifier 'src'
+<scrubbed_path>(3,22-32): error X3014: incorrect number of arguments to numeric-type constructor
 
+
+tint executable returned error: exit status 1

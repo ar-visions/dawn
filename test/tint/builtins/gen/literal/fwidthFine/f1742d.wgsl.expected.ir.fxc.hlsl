@@ -1,7 +1,8 @@
 
 RWByteAddressBuffer prevent_dce : register(u0);
 float fwidthFine_f1742d() {
-  float res = fwidth(1.0f);
+  float v = ddx_fine(1.0f);
+  float res = (abs(v) + abs(ddy_fine(1.0f)));
   return res;
 }
 

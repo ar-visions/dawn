@@ -83,6 +83,14 @@ struct PackedVec3::State {
     /// A map from type to the name of a helper function used to unpack that type.
     Hashmap<const core::type::Type*, Symbol, 4> unpack_helpers;
 
+    /// @returns true if @p addrspace requires vec3 types to be packed
+    bool AddressSpaceNeedsPacking(core::AddressSpace addrspace) {
+        // Host-shareable address spaces need to be packed to match the memory layout on the host.
+        // The workgroup address space needs to be packed so that the size of generated threadgroup
+        // variables matches the size of the original WGSL declarations.
+        return core::IsHostShareable(addrspace) || addrspace == core::AddressSpace::kWorkgroup;
+    }
+
     /// @param ty the type to test
     /// @returns true if `ty` is a vec3, false otherwise
     bool IsVec3(const core::type::Type* ty) {
@@ -118,7 +126,7 @@ struct PackedVec3::State {
     ast::Type MakePackedVec3(const core::type::Type* ty) {
         auto* vec = ty->As<core::type::Vector>();
         TINT_ASSERT(vec != nullptr && vec->Width() == 3);
-        return b.ty(core::BuiltinType::kPackedVec3, CreateASTTypeFor(ctx, vec->type()));
+        return b.ty(core::BuiltinType::kPackedVec3, CreateASTTypeFor(ctx, vec->Type()));
     }
 
     /// Recursively rewrite a type using `__packed_vec3`, if needed.
@@ -141,7 +149,7 @@ struct PackedVec3::State {
                         // type, to avoid changing the array element stride.
                         return b.ty(packed_vec3_wrapper_struct_names.GetOrAdd(vec, [&] {
                             auto name = b.Symbols().New(
-                                "tint_packed_vec3_" + vec->type()->FriendlyName() +
+                                "tint_packed_vec3_" + vec->Type()->FriendlyName() +
                                 (array_element ? "_array_element" : "_struct_member"));
                             auto* member =
                                 b.Member(kStructMemberName, MakePackedVec3(vec),
@@ -159,7 +167,7 @@ struct PackedVec3::State {
                 // Rewrite the matrix as an array of columns that use the aligned wrapper struct.
                 auto new_col_type = RewriteType(mat->ColumnType(), /* array_element */ true);
                 if (new_col_type) {
-                    return b.ty.array(new_col_type, u32(mat->columns()));
+                    return b.ty.array(new_col_type, u32(mat->Columns()));
                 }
                 return {};
             },
@@ -284,7 +292,7 @@ struct PackedVec3::State {
                 copy_array_elements(arr->ConstantCount().value(), arr->ElemType());
             },
             [&](const core::type::Matrix* mat) {
-                copy_array_elements(mat->columns(), mat->ColumnType());
+                copy_array_elements(mat->Columns(), mat->ColumnType());
             },
             [&](const core::type::Struct* str) {
                 statements.Push(b.Decl(b.Var("result", out_type())));
@@ -373,7 +381,7 @@ struct PackedVec3::State {
         // if the transform is necessary.
         for (auto* decl : src.AST().GlobalVariables()) {
             auto* var = sem.Get<sem::GlobalVariable>(decl);
-            if (var && core::IsHostShareable(var->AddressSpace()) &&
+            if (var && AddressSpaceNeedsPacking(var->AddressSpace()) &&
                 ContainsVec3(var->Type()->UnwrapRef())) {
                 return true;
             }
@@ -410,7 +418,7 @@ struct PackedVec3::State {
                 [&](const sem::TypeExpression* type) {
                     // Rewrite pointers to types that contain vec3s.
                     auto* ptr = type->Type()->As<core::type::Pointer>();
-                    if (ptr && core::IsHostShareable(ptr->AddressSpace())) {
+                    if (ptr && AddressSpaceNeedsPacking(ptr->AddressSpace())) {
                         auto new_store_type = RewriteType(ptr->StoreType());
                         if (new_store_type) {
                             auto access = ptr->AddressSpace() == core::AddressSpace::kStorage
@@ -423,7 +431,7 @@ struct PackedVec3::State {
                     }
                 },
                 [&](const sem::Variable* var) {
-                    if (!core::IsHostShareable(var->AddressSpace())) {
+                    if (!AddressSpaceNeedsPacking(var->AddressSpace())) {
                         return;
                     }
 
@@ -439,7 +447,7 @@ struct PackedVec3::State {
                         auto* lhs = sem.GetVal(assign->lhs);
                         auto* rhs = sem.GetVal(assign->rhs);
                         if (!ContainsVec3(rhs->Type()) ||
-                            !core::IsHostShareable(
+                            !AddressSpaceNeedsPacking(
                                 lhs->Type()->As<core::type::Reference>()->AddressSpace())) {
                             // Skip assignments to address spaces that are not host-shareable, or
                             // that do not contain vec3 types.
@@ -467,7 +475,7 @@ struct PackedVec3::State {
                 [&](const sem::Load* load) {
                     // Unpack loads of types that contain vec3s in host-shareable address spaces.
                     if (ContainsVec3(load->Type()) &&
-                        core::IsHostShareable(load->MemoryView()->AddressSpace())) {
+                        AddressSpaceNeedsPacking(load->MemoryView()->AddressSpace())) {
                         to_unpack.Add(load);
                     }
                 },
@@ -477,7 +485,7 @@ struct PackedVec3::State {
                     // struct.
                     if (auto* ref = accessor->Type()->As<core::type::Reference>()) {
                         if (IsVec3(ref->StoreType()) &&
-                            core::IsHostShareable(ref->AddressSpace())) {
+                            AddressSpaceNeedsPacking(ref->AddressSpace())) {
                             ctx.Replace(node, b.MemberAccessor(ctx.Clone(accessor->Declaration()),
                                                                kStructMemberName));
                         }

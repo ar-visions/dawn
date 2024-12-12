@@ -1,3 +1,39 @@
+//
+// fragment_main
+//
+
+RWByteAddressBuffer prevent_dce : register(u0);
+TextureCube arg_0 : register(t0, space1);
+SamplerState arg_1 : register(s1, space1);
+float textureSampleLevel_1b0291() {
+  float res = arg_0.SampleLevel(arg_1, (1.0f).xxx, float(int(1))).x;
+  return res;
+}
+
+void fragment_main() {
+  prevent_dce.Store(0u, asuint(textureSampleLevel_1b0291()));
+}
+
+//
+// compute_main
+//
+
+RWByteAddressBuffer prevent_dce : register(u0);
+TextureCube arg_0 : register(t0, space1);
+SamplerState arg_1 : register(s1, space1);
+float textureSampleLevel_1b0291() {
+  float res = arg_0.SampleLevel(arg_1, (1.0f).xxx, float(int(1))).x;
+  return res;
+}
+
+[numthreads(1, 1, 1)]
+void compute_main() {
+  prevent_dce.Store(0u, asuint(textureSampleLevel_1b0291()));
+}
+
+//
+// vertex_main
+//
 struct VertexOutput {
   float4 pos;
   float prevent_dce;
@@ -9,38 +45,24 @@ struct vertex_main_outputs {
 };
 
 
-RWByteAddressBuffer prevent_dce : register(u0);
 TextureCube arg_0 : register(t0, space1);
 SamplerState arg_1 : register(s1, space1);
 float textureSampleLevel_1b0291() {
-  TextureCube v = arg_0;
-  SamplerState v_1 = arg_1;
-  float res = v.SampleLevel(v_1, (1.0f).xxx, float(1));
+  float res = arg_0.SampleLevel(arg_1, (1.0f).xxx, float(int(1))).x;
   return res;
-}
-
-void fragment_main() {
-  prevent_dce.Store(0u, asuint(textureSampleLevel_1b0291()));
-}
-
-[numthreads(1, 1, 1)]
-void compute_main() {
-  prevent_dce.Store(0u, asuint(textureSampleLevel_1b0291()));
 }
 
 VertexOutput vertex_main_inner() {
   VertexOutput tint_symbol = (VertexOutput)0;
   tint_symbol.pos = (0.0f).xxxx;
   tint_symbol.prevent_dce = textureSampleLevel_1b0291();
-  VertexOutput v_2 = tint_symbol;
-  return v_2;
+  VertexOutput v = tint_symbol;
+  return v;
 }
 
 vertex_main_outputs vertex_main() {
-  VertexOutput v_3 = vertex_main_inner();
-  VertexOutput v_4 = v_3;
-  VertexOutput v_5 = v_3;
-  vertex_main_outputs v_6 = {v_5.prevent_dce, v_4.pos};
-  return v_6;
+  VertexOutput v_1 = vertex_main_inner();
+  vertex_main_outputs v_2 = {v_1.prevent_dce, v_1.pos};
+  return v_2;
 }
 

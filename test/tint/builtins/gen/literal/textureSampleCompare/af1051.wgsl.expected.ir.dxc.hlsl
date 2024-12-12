@@ -1,9 +1,13 @@
-SKIP: FAILED
 
-..\..\src\tint\lang\hlsl\writer\printer\printer.cc:1010 internal compiler error: TINT_UNREACHABLE unhandled: textureSampleCompare
-********************************************************************
-*  The tint shader compiler has encountered an unexpected error.   *
-*                                                                  *
-*  Please help us fix this issue by submitting a bug report at     *
-*  crbug.com/tint with the source program that triggered the bug.  *
-********************************************************************
+RWByteAddressBuffer prevent_dce : register(u0);
+Texture2DArray arg_0 : register(t0, space1);
+SamplerComparisonState arg_1 : register(s1, space1);
+float textureSampleCompare_af1051() {
+  float res = arg_0.SampleCmp(arg_1, float3((1.0f).xx, float(int(1))), 1.0f, (int(1)).xx);
+  return res;
+}
+
+void fragment_main() {
+  prevent_dce.Store(0u, asuint(textureSampleCompare_af1051()));
+}
+

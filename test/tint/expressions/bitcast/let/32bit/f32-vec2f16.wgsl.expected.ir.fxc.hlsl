@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 
 vector<float16_t, 2> tint_bitcast_to_f16(float src) {
@@ -16,5 +16,7 @@ void f() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x000001F90A4639D0(2,8-16): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(2,8-16): error X3000: syntax error: unexpected token 'float16_t'
 
+
+tint executable returned error: exit status 1

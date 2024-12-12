@@ -2,11 +2,11 @@
 using namespace metal;
 
 struct UBO {
-  int dynamic_idx;
+  /* 0x0000 */ int dynamic_idx;
 };
 
 struct Result {
-  int out;
+  /* 0x0000 */ int out;
 };
 
 template<typename T, size_t N>
@@ -52,8 +52,8 @@ void f_inner(uint tint_local_index, tint_module_vars_struct tint_module_vars) {
     }
   }
   threadgroup_barrier(mem_flags::mem_threadgroup);
-  (*tint_module_vars.s).data[(*tint_module_vars.ubo).dynamic_idx] = 1;
-  (*tint_module_vars.result).out = (*tint_module_vars.s).data[3];
+  (*tint_module_vars.s).data[min(uint((*tint_module_vars.ubo).dynamic_idx), 63u)] = 1;
+  (*tint_module_vars.result).out = (*tint_module_vars.s).data[3u];
 }
 
 kernel void f(uint tint_local_index [[thread_index_in_threadgroup]], const constant UBO* ubo [[buffer(0)]], device Result* result [[buffer(1)]], threadgroup tint_symbol_1* v_2 [[threadgroup(0)]]) {

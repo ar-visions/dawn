@@ -99,8 +99,7 @@ struct StateImpl : core::ir::transform::ShaderIOBackendState {
 
                 // Vulkan requires that fragment integer builtin inputs be Flat decorated.
                 if (func->Stage() == core::ir::Function::PipelineStage::kFragment &&
-                    addrspace == core::AddressSpace::kIn &&
-                    io.type->is_integer_scalar_or_vector()) {
+                    addrspace == core::AddressSpace::kIn && io.type->IsIntegerScalarOrVector()) {
                     io.attributes.interpolation = {core::InterpolationType::kFlat};
                 }
             }
@@ -116,7 +115,7 @@ struct StateImpl : core::ir::transform::ShaderIOBackendState {
             auto* store_type = io.type;
             if (config.polyfill_f16_io) {
                 if (store_type->DeepestElement()->Is<core::type::F16>()) {
-                    store_type = ty.match_width(ty.f32(), io.type);
+                    store_type = ty.MatchWidth(ty.f32(), io.type);
                 }
             }
 
@@ -236,7 +235,7 @@ struct StateImpl : core::ir::transform::ShaderIOBackendState {
 }  // namespace
 
 Result<SuccessType> ShaderIO(core::ir::Module& ir, const ShaderIOConfig& config) {
-    auto result = ValidateAndDumpIfNeeded(ir, "ShaderIO transform");
+    auto result = ValidateAndDumpIfNeeded(ir, "spirv.ShaderIO");
     if (result != Success) {
         return result;
     }

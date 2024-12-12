@@ -39,6 +39,7 @@
 #include "dawn/native/d3d11/DeviceD3D11.h"
 #include "dawn/native/d3d11/PlatformFunctionsD3D11.h"
 #include "dawn/native/d3d11/UtilsD3D11.h"
+#include "dawn/platform/DawnPlatform.h"
 
 namespace dawn::native::d3d11 {
 
@@ -55,16 +56,19 @@ bool PhysicalDevice::SupportsExternalImages() const {
     return true;
 }
 
-bool PhysicalDevice::SupportsFeatureLevel(FeatureLevel featureLevel) const {
+bool PhysicalDevice::SupportsFeatureLevel(wgpu::FeatureLevel featureLevel) const {
     // TODO(dawn:1820): compare D3D11 feature levels with Dawn feature levels.
     switch (featureLevel) {
-        case FeatureLevel::Core: {
+        case wgpu::FeatureLevel::Core: {
             return mFeatureLevel >= D3D_FEATURE_LEVEL_11_1;
         }
-        case FeatureLevel::Compatibility: {
+        case wgpu::FeatureLevel::Compatibility: {
             return true;
         }
+        case wgpu::FeatureLevel::Undefined:
+            break;
     }
+    DAWN_UNREACHABLE();
 }
 
 const DeviceInfo& PhysicalDevice::GetDeviceInfo() const {
@@ -140,9 +144,11 @@ void PhysicalDevice::InitializeSupportedFeaturesImpl() {
     EnableFeature(Feature::Depth32FloatStencil8);
     EnableFeature(Feature::DepthClipControl);
     EnableFeature(Feature::TextureCompressionBC);
-    EnableFeature(Feature::SurfaceCapabilities);
     EnableFeature(Feature::D3D11MultithreadProtected);
+    EnableFeature(Feature::Float32Filterable);
+    EnableFeature(Feature::Float32Blendable);
     EnableFeature(Feature::DualSourceBlending);
+    EnableFeature(Feature::ClipDistances);
     EnableFeature(Feature::Unorm16TextureFormats);
     EnableFeature(Feature::Snorm16TextureFormats);
     EnableFeature(Feature::Norm16TextureFormats);
@@ -152,6 +158,7 @@ void PhysicalDevice::InitializeSupportedFeaturesImpl() {
     EnableFeature(Feature::ShaderModuleCompilationOptions);
     EnableFeature(Feature::DawnLoadResolveTexture);
     EnableFeature(Feature::DawnPartialLoadResolveTexture);
+    EnableFeature(Feature::RG11B10UfloatRenderable);
     if (mDeviceInfo.isUMA && mDeviceInfo.supportsMapNoOverwriteDynamicBuffers) {
         // With UMA we should allow mapping usages on more type of buffers.
         EnableFeature(Feature::BufferMapExtendedUsages);
@@ -181,6 +188,8 @@ void PhysicalDevice::InitializeSupportedFeaturesImpl() {
     if (formatSupport & D3D11_FORMAT_SUPPORT_TYPED_UNORDERED_ACCESS_VIEW) {
         EnableFeature(Feature::BGRA8UnormStorage);
     }
+
+    EnableFeature(Feature::DawnTexelCopyBufferRowAlignment);
 }
 
 MaybeError PhysicalDevice::InitializeSupportedLimitsImpl(CombinedLimits* limits) {
@@ -241,7 +250,7 @@ MaybeError PhysicalDevice::InitializeSupportedLimitsImpl(CombinedLimits* limits)
     // Max number of "constants" where each constant is a 16-byte float4
     limits->v1.maxUniformBufferBindingSize = D3D11_REQ_CONSTANT_BUFFER_ELEMENT_COUNT * 16;
 
-    if (gpu_info::IsQualcomm(GetVendorId())) {
+    if (gpu_info::IsQualcomm_ACPI(GetVendorId())) {
         // limit of number of texels in a buffer == (1 << 27)
         // D3D11_REQ_BUFFER_RESOURCE_TEXEL_COUNT_2_TO_EXP
         // This limit doesn't apply to a raw buffer, but only applies to
@@ -260,6 +269,9 @@ MaybeError PhysicalDevice::InitializeSupportedLimitsImpl(CombinedLimits* limits)
     limits->v1.maxInterStageShaderVariables = D3D11_PS_INPUT_REGISTER_COUNT - 2;
     limits->v1.maxInterStageShaderComponents =
         limits->v1.maxInterStageShaderVariables * D3D11_PS_INPUT_REGISTER_COMPONENTS;
+
+    // The BlitTextureToBuffer helper requires the alignment to be 4.
+    limits->texelCopyBufferRowAlignmentLimits.minTexelCopyBufferRowAlignment = 4;
 
     return {};
 }
@@ -283,6 +295,23 @@ void PhysicalDevice::SetupBackendDeviceToggles(dawn::platform::Platform* platfor
     deviceToggles->Default(Toggle::UseBlitForBufferToStencilTextureCopy, true);
     deviceToggles->Default(Toggle::D3D11UseUnmonitoredFence, !mDeviceInfo.supportsMonitoredFence);
     deviceToggles->Default(Toggle::UseBlitForT2B, true);
+
+    auto deviceId = GetDeviceId();
+    auto vendorId = GetVendorId();
+    // D3D11 ClearRenderTargetView() could be buggy with some old driver or GPUs. Intel Gen12+ GPUs
+    // don't have the problem.
+    // https://crbug.com/329702368
+    //
+    // The workaround still can't cover lazy clear,
+    // TODO(crbug.com/364834368): Move handling of workaround at command submission time instead of
+    // recording time.
+    if (gpu_info::IsIntelGen11OrOlder(vendorId, deviceId)) {
+        deviceToggles->Default(Toggle::ClearColorWithDraw, true);
+    }
+
+    // Use the Tint IR backend by default if the corresponding platform feature is enabled.
+    deviceToggles->Default(Toggle::UseTintIR,
+                           platform->IsFeatureEnabled(platform::Features::kWebGPUUseTintIR));
 }
 
 ResultOrError<Ref<DeviceBase>> PhysicalDevice::CreateDeviceImpl(
@@ -305,8 +334,8 @@ MaybeError PhysicalDevice::ResetInternalDeviceForTestingImpl() {
     return {};
 }
 
-void PhysicalDevice::PopulateBackendProperties(UnpackedPtr<AdapterProperties>& properties) const {
-    if (auto* memoryHeapProperties = properties.Get<AdapterPropertiesMemoryHeaps>()) {
+void PhysicalDevice::PopulateBackendProperties(UnpackedPtr<AdapterInfo>& info) const {
+    if (auto* memoryHeapProperties = info.Get<AdapterPropertiesMemoryHeaps>()) {
         // https://microsoft.github.io/DirectX-Specs/d3d/D3D12GPUUploadHeaps.html describes
         // the properties of D3D12 Default/Upload/Readback heaps. The assumption is that these are
         // roughly how D3D11 allocates memory has well.
@@ -334,7 +363,7 @@ void PhysicalDevice::PopulateBackendProperties(UnpackedPtr<AdapterProperties>& p
                 wgpu::HeapProperty::HostUncached | wgpu::HeapProperty::HostCached;
         }
     }
-    if (auto* d3dProperties = properties.Get<AdapterPropertiesD3D>()) {
+    if (auto* d3dProperties = info.Get<AdapterPropertiesD3D>()) {
         d3dProperties->shaderModel = GetDeviceInfo().shaderModel;
     }
 }

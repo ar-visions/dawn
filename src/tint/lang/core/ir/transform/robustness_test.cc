@@ -48,7 +48,18 @@ namespace {
 using namespace tint::core::fluent_types;     // NOLINT
 using namespace tint::core::number_suffixes;  // NOLINT
 
+// Tests for non-binding variables
 using IR_RobustnessTest = TransformTestWithParam<bool>;
+
+// Tests for binding variables
+struct BindingVariableCase {
+    bool enabled;
+    bool ignore_bindings;
+};
+inline std::ostream& operator<<(std::ostream& out, BindingVariableCase c) {
+    return out << "enabled: " << c.enabled << ", ignore_bindings: " << c.ignore_bindings;
+}
+using IR_BindingVariableRobustnessTest = TransformTestWithParam<BindingVariableCase>;
 
 ////////////////////////////////////////////////////////////////
 // These tests use the function address space.
@@ -1083,7 +1094,7 @@ $B1: {  # root
     EXPECT_EQ(GetParam() ? expect : src, str());
 }
 
-TEST_P(IR_RobustnessTest, Storage_LoadVectorElement) {
+TEST_P(IR_BindingVariableRobustnessTest, Storage_LoadVectorElement) {
     auto* vec = b.Var("vec", ty.ptr(storage, ty.vec4<u32>()));
     vec->SetBindingPoint(0, 0);
     mod.root_block->Append(vec);
@@ -1125,13 +1136,16 @@ $B1: {  # root
 )";
 
     RobustnessConfig cfg;
-    cfg.clamp_storage = GetParam();
+    cfg.clamp_storage = GetParam().enabled;
+    if (GetParam().ignore_bindings) {
+        cfg.bindings_ignored = {{0, 0}};
+    }
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ((GetParam().enabled && !GetParam().ignore_bindings) ? expect : src, str());
 }
 
-TEST_P(IR_RobustnessTest, Storage_StoreVectorElement) {
+TEST_P(IR_BindingVariableRobustnessTest, Storage_StoreVectorElement) {
     auto* vec = b.Var("vec", ty.ptr(storage, ty.vec4<u32>()));
     vec->SetBindingPoint(0, 0);
     mod.root_block->Append(vec);
@@ -1173,13 +1187,16 @@ $B1: {  # root
 )";
 
     RobustnessConfig cfg;
-    cfg.clamp_storage = GetParam();
+    cfg.clamp_storage = GetParam().enabled;
+    if (GetParam().ignore_bindings) {
+        cfg.bindings_ignored = {{0, 0}};
+    }
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ((GetParam().enabled && !GetParam().ignore_bindings) ? expect : src, str());
 }
 
-TEST_P(IR_RobustnessTest, Storage_Access) {
+TEST_P(IR_BindingVariableRobustnessTest, Storage_Access) {
     auto* arr = b.Var("arr", ty.ptr(storage, ty.array<u32, 4>()));
     arr->SetBindingPoint(0, 0);
     mod.root_block->Append(arr);
@@ -1224,13 +1241,16 @@ $B1: {  # root
 )";
 
     RobustnessConfig cfg;
-    cfg.clamp_storage = GetParam();
+    cfg.clamp_storage = GetParam().enabled;
+    if (GetParam().ignore_bindings) {
+        cfg.bindings_ignored = {{0, 0}};
+    }
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ((GetParam().enabled && !GetParam().ignore_bindings) ? expect : src, str());
 }
 
-TEST_P(IR_RobustnessTest, Unifom_LoadVectorElement) {
+TEST_P(IR_BindingVariableRobustnessTest, Unifom_LoadVectorElement) {
     auto* vec = b.Var("vec", ty.ptr(uniform, ty.vec4<u32>()));
     vec->SetBindingPoint(0, 0);
     mod.root_block->Append(vec);
@@ -1272,13 +1292,16 @@ $B1: {  # root
 )";
 
     RobustnessConfig cfg;
-    cfg.clamp_uniform = GetParam();
+    cfg.clamp_uniform = GetParam().enabled;
+    if (GetParam().ignore_bindings) {
+        cfg.bindings_ignored = {{0, 0}};
+    }
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ((GetParam().enabled && !GetParam().ignore_bindings) ? expect : src, str());
 }
 
-TEST_P(IR_RobustnessTest, Unifom_StoreVectorElement) {
+TEST_P(IR_BindingVariableRobustnessTest, Unifom_StoreVectorElement) {
     auto* vec = b.Var("vec", ty.ptr(uniform, ty.vec4<u32>()));
     vec->SetBindingPoint(0, 0);
     mod.root_block->Append(vec);
@@ -1320,13 +1343,16 @@ $B1: {  # root
 )";
 
     RobustnessConfig cfg;
-    cfg.clamp_uniform = GetParam();
+    cfg.clamp_uniform = GetParam().enabled;
+    if (GetParam().ignore_bindings) {
+        cfg.bindings_ignored = {{0, 0}};
+    }
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ((GetParam().enabled && !GetParam().ignore_bindings) ? expect : src, str());
 }
 
-TEST_P(IR_RobustnessTest, Uniform_Access) {
+TEST_P(IR_BindingVariableRobustnessTest, Uniform_Access) {
     auto* arr = b.Var("arr", ty.ptr(uniform, ty.array<u32, 4>()));
     arr->SetBindingPoint(0, 0);
     mod.root_block->Append(arr);
@@ -1371,10 +1397,13 @@ $B1: {  # root
 )";
 
     RobustnessConfig cfg;
-    cfg.clamp_uniform = GetParam();
+    cfg.clamp_uniform = GetParam().enabled;
+    if (GetParam().ignore_bindings) {
+        cfg.bindings_ignored = {{0, 0}};
+    }
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ((GetParam().enabled && !GetParam().ignore_bindings) ? expect : src, str());
 }
 
 TEST_P(IR_RobustnessTest, Workgroup_LoadVectorElement) {
@@ -1647,13 +1676,11 @@ TEST_P(IR_RobustnessTest, ParamValueArray_DynamicIndex) {
     EXPECT_EQ(GetParam() ? expect : src, str());
 }
 
-INSTANTIATE_TEST_SUITE_P(, IR_RobustnessTest, testing::Values(false, true));
-
 ////////////////////////////////////////////////////////////////
 // Test clamping runtime-sized arrays.
 ////////////////////////////////////////////////////////////////
 
-TEST_P(IR_RobustnessTest, RuntimeSizedArray_ConstIndex) {
+TEST_P(IR_BindingVariableRobustnessTest, RuntimeSizedArray_ConstIndex) {
     auto* arr = b.Var("arr", ty.ptr(storage, ty.array<u32>()));
     arr->SetBindingPoint(0, 0);
     mod.root_block->Append(arr);
@@ -1698,13 +1725,16 @@ $B1: {  # root
 )";
 
     RobustnessConfig cfg;
-    cfg.clamp_storage = GetParam();
+    cfg.clamp_storage = GetParam().enabled;
+    if (GetParam().ignore_bindings) {
+        cfg.bindings_ignored = {{0, 0}};
+    }
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ((GetParam().enabled && !GetParam().ignore_bindings) ? expect : src, str());
 }
 
-TEST_P(IR_RobustnessTest, RuntimeSizedArray_DynamicIndex) {
+TEST_P(IR_BindingVariableRobustnessTest, RuntimeSizedArray_DynamicIndex) {
     auto* arr = b.Var("arr", ty.ptr(storage, ty.array<u32>()));
     arr->SetBindingPoint(0, 0);
     mod.root_block->Append(arr);
@@ -1751,13 +1781,16 @@ $B1: {  # root
 )";
 
     RobustnessConfig cfg;
-    cfg.clamp_storage = GetParam();
+    cfg.clamp_storage = GetParam().enabled;
+    if (GetParam().ignore_bindings) {
+        cfg.bindings_ignored = {{0, 0}};
+    }
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ((GetParam().enabled && !GetParam().ignore_bindings) ? expect : src, str());
 }
 
-TEST_P(IR_RobustnessTest, RuntimeSizedArray_InStruct_ConstIndex) {
+TEST_P(IR_BindingVariableRobustnessTest, RuntimeSizedArray_InStruct_ConstIndex) {
     auto* structure = ty.Struct(mod.symbols.Register("structure"),
                                 {
                                     {mod.symbols.Register("arr"), ty.array<u32>()},
@@ -1816,13 +1849,16 @@ $B1: {  # root
 )";
 
     RobustnessConfig cfg;
-    cfg.clamp_storage = GetParam();
+    cfg.clamp_storage = GetParam().enabled;
+    if (GetParam().ignore_bindings) {
+        cfg.bindings_ignored = {{0, 0}};
+    }
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ((GetParam().enabled && !GetParam().ignore_bindings) ? expect : src, str());
 }
 
-TEST_P(IR_RobustnessTest, RuntimeSizedArray_InStruct_DynamicIndex) {
+TEST_P(IR_BindingVariableRobustnessTest, RuntimeSizedArray_InStruct_DynamicIndex) {
     auto* structure = ty.Struct(mod.symbols.Register("structure"),
                                 {
                                     {mod.symbols.Register("arr"), ty.array<u32>()},
@@ -1883,13 +1919,16 @@ $B1: {  # root
 )";
 
     RobustnessConfig cfg;
-    cfg.clamp_storage = GetParam();
+    cfg.clamp_storage = GetParam().enabled;
+    if (GetParam().ignore_bindings) {
+        cfg.bindings_ignored = {{0, 0}};
+    }
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ((GetParam().enabled && !GetParam().ignore_bindings) ? expect : src, str());
 }
 
-TEST_P(IR_RobustnessTest, RuntimeSizedArray_DisableClamping) {
+TEST_P(IR_BindingVariableRobustnessTest, RuntimeSizedArray_DisableClamping) {
     auto* arr = b.Var("arr", ty.ptr(storage, ty.array<u32>()));
     arr->SetBindingPoint(0, 0);
     mod.root_block->Append(arr);
@@ -1934,20 +1973,21 @@ $B1: {  # root
   }
 }
 )";
-
     RobustnessConfig cfg;
-    cfg.clamp_storage = true;
-    cfg.disable_runtime_sized_array_index_clamping = !GetParam();
+    cfg.clamp_storage = GetParam().enabled;
+    if (GetParam().ignore_bindings) {
+        cfg.bindings_ignored = {{0, 0}};
+    }
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ((GetParam().enabled && !GetParam().ignore_bindings) ? expect : src, str());
 }
 
 ////////////////////////////////////////////////////////////////
 // Test clamping texture builtin calls.
 ////////////////////////////////////////////////////////////////
 
-TEST_P(IR_RobustnessTest, TextureDimensions) {
+TEST_P(IR_BindingVariableRobustnessTest, TextureDimensions) {
     auto* texture = b.Var(
         "texture",
         ty.ptr(handle, ty.Get<type::SampledTexture>(type::TextureDimension::k2d, ty.f32()), read));
@@ -1979,13 +2019,16 @@ $B1: {  # root
     auto* expect = src;
 
     RobustnessConfig cfg;
-    cfg.clamp_texture = GetParam();
+    cfg.clamp_texture = GetParam().enabled;
+    if (GetParam().ignore_bindings) {
+        cfg.bindings_ignored = {{0, 0}};
+    }
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ((GetParam().enabled && !GetParam().ignore_bindings) ? expect : src, str());
 }
 
-TEST_P(IR_RobustnessTest, TextureDimensions_WithLevel) {
+TEST_P(IR_BindingVariableRobustnessTest, TextureDimensions_WithLevel) {
     auto* texture = b.Var(
         "texture",
         ty.ptr(handle, ty.Get<type::SampledTexture>(type::TextureDimension::k2d, ty.f32()), read));
@@ -2034,13 +2077,13 @@ $B1: {  # root
 )";
 
     RobustnessConfig cfg;
-    cfg.clamp_texture = GetParam();
+    cfg.clamp_texture = GetParam().enabled;
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ(GetParam().enabled ? expect : src, str());
 }
 
-TEST_P(IR_RobustnessTest, TextureLoad_Sampled1D) {
+TEST_P(IR_BindingVariableRobustnessTest, TextureLoad_Sampled1D) {
     auto* texture = b.Var(
         "texture",
         ty.ptr(handle, ty.Get<type::SampledTexture>(type::TextureDimension::k1d, ty.f32()), read));
@@ -2103,41 +2146,41 @@ $B1: {  # root
 %load_signed = func(%coords:i32, %level:i32):vec4<f32> {
   $B2: {
     %5:texture_1d<f32> = load %texture
-    %6:u32 = textureDimensions %5
+    %6:u32 = textureNumLevels %5
     %7:u32 = sub %6, 1u
-    %8:u32 = convert %coords
+    %8:u32 = convert %level
     %9:u32 = min %8, %7
-    %10:u32 = textureNumLevels %5
+    %10:u32 = textureDimensions %5, %9
     %11:u32 = sub %10, 1u
-    %12:u32 = convert %level
+    %12:u32 = convert %coords
     %13:u32 = min %12, %11
-    %14:vec4<f32> = textureLoad %5, %9, %13
+    %14:vec4<f32> = textureLoad %5, %13, %9
     ret %14
   }
 }
 %load_unsigned = func(%coords_1:u32, %level_1:u32):vec4<f32> {  # %coords_1: 'coords', %level_1: 'level'
   $B3: {
     %18:texture_1d<f32> = load %texture
-    %19:u32 = textureDimensions %18
+    %19:u32 = textureNumLevels %18
     %20:u32 = sub %19, 1u
-    %21:u32 = min %coords_1, %20
-    %22:u32 = textureNumLevels %18
+    %21:u32 = min %level_1, %20
+    %22:u32 = textureDimensions %18, %21
     %23:u32 = sub %22, 1u
-    %24:u32 = min %level_1, %23
-    %25:vec4<f32> = textureLoad %18, %21, %24
+    %24:u32 = min %coords_1, %23
+    %25:vec4<f32> = textureLoad %18, %24, %21
     ret %25
   }
 }
 )";
 
     RobustnessConfig cfg;
-    cfg.clamp_texture = GetParam();
+    cfg.clamp_texture = GetParam().enabled;
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ(GetParam().enabled ? expect : src, str());
 }
 
-TEST_P(IR_RobustnessTest, TextureLoad_Sampled2D) {
+TEST_P(IR_BindingVariableRobustnessTest, TextureLoad_Sampled2D) {
     auto* texture = b.Var(
         "texture",
         ty.ptr(handle, ty.Get<type::SampledTexture>(type::TextureDimension::k2d, ty.f32()), read));
@@ -2200,41 +2243,41 @@ $B1: {  # root
 %load_signed = func(%coords:vec2<i32>, %level:i32):vec4<f32> {
   $B2: {
     %5:texture_2d<f32> = load %texture
-    %6:vec2<u32> = textureDimensions %5
-    %7:vec2<u32> = sub %6, vec2<u32>(1u)
-    %8:vec2<u32> = convert %coords
-    %9:vec2<u32> = min %8, %7
-    %10:u32 = textureNumLevels %5
-    %11:u32 = sub %10, 1u
-    %12:u32 = convert %level
-    %13:u32 = min %12, %11
-    %14:vec4<f32> = textureLoad %5, %9, %13
+    %6:u32 = textureNumLevels %5
+    %7:u32 = sub %6, 1u
+    %8:u32 = convert %level
+    %9:u32 = min %8, %7
+    %10:vec2<u32> = textureDimensions %5, %9
+    %11:vec2<u32> = sub %10, vec2<u32>(1u)
+    %12:vec2<u32> = convert %coords
+    %13:vec2<u32> = min %12, %11
+    %14:vec4<f32> = textureLoad %5, %13, %9
     ret %14
   }
 }
 %load_unsigned = func(%coords_1:vec2<u32>, %level_1:u32):vec4<f32> {  # %coords_1: 'coords', %level_1: 'level'
   $B3: {
     %18:texture_2d<f32> = load %texture
-    %19:vec2<u32> = textureDimensions %18
-    %20:vec2<u32> = sub %19, vec2<u32>(1u)
-    %21:vec2<u32> = min %coords_1, %20
-    %22:u32 = textureNumLevels %18
-    %23:u32 = sub %22, 1u
-    %24:u32 = min %level_1, %23
-    %25:vec4<f32> = textureLoad %18, %21, %24
+    %19:u32 = textureNumLevels %18
+    %20:u32 = sub %19, 1u
+    %21:u32 = min %level_1, %20
+    %22:vec2<u32> = textureDimensions %18, %21
+    %23:vec2<u32> = sub %22, vec2<u32>(1u)
+    %24:vec2<u32> = min %coords_1, %23
+    %25:vec4<f32> = textureLoad %18, %24, %21
     ret %25
   }
 }
 )";
 
     RobustnessConfig cfg;
-    cfg.clamp_texture = GetParam();
+    cfg.clamp_texture = GetParam().enabled;
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ(GetParam().enabled ? expect : src, str());
 }
 
-TEST_P(IR_RobustnessTest, TextureLoad_Sampled2DArray) {
+TEST_P(IR_BindingVariableRobustnessTest, TextureLoad_Sampled2DArray) {
     auto* texture = b.Var(
         "texture",
         ty.ptr(handle, ty.Get<type::SampledTexture>(type::TextureDimension::k2dArray, ty.f32()),
@@ -2300,48 +2343,48 @@ $B1: {  # root
 %load_signed = func(%coords:vec2<i32>, %layer:i32, %level:i32):vec4<f32> {
   $B2: {
     %6:texture_2d_array<f32> = load %texture
-    %7:vec2<u32> = textureDimensions %6
-    %8:vec2<u32> = sub %7, vec2<u32>(1u)
-    %9:vec2<u32> = convert %coords
-    %10:vec2<u32> = min %9, %8
-    %11:u32 = textureNumLayers %6
+    %7:u32 = textureNumLayers %6
+    %8:u32 = sub %7, 1u
+    %9:u32 = convert %layer
+    %10:u32 = min %9, %8
+    %11:u32 = textureNumLevels %6
     %12:u32 = sub %11, 1u
-    %13:u32 = convert %layer
+    %13:u32 = convert %level
     %14:u32 = min %13, %12
-    %15:u32 = textureNumLevels %6
-    %16:u32 = sub %15, 1u
-    %17:u32 = convert %level
-    %18:u32 = min %17, %16
-    %19:vec4<f32> = textureLoad %6, %10, %14, %18
+    %15:vec2<u32> = textureDimensions %6, %14
+    %16:vec2<u32> = sub %15, vec2<u32>(1u)
+    %17:vec2<u32> = convert %coords
+    %18:vec2<u32> = min %17, %16
+    %19:vec4<f32> = textureLoad %6, %18, %10, %14
     ret %19
   }
 }
 %load_unsigned = func(%coords_1:vec2<u32>, %layer_1:u32, %level_1:u32):vec4<f32> {  # %coords_1: 'coords', %layer_1: 'layer', %level_1: 'level'
   $B3: {
     %24:texture_2d_array<f32> = load %texture
-    %25:vec2<u32> = textureDimensions %24
-    %26:vec2<u32> = sub %25, vec2<u32>(1u)
-    %27:vec2<u32> = min %coords_1, %26
-    %28:u32 = textureNumLayers %24
+    %25:u32 = textureNumLayers %24
+    %26:u32 = sub %25, 1u
+    %27:u32 = min %layer_1, %26
+    %28:u32 = textureNumLevels %24
     %29:u32 = sub %28, 1u
-    %30:u32 = min %layer_1, %29
-    %31:u32 = textureNumLevels %24
-    %32:u32 = sub %31, 1u
-    %33:u32 = min %level_1, %32
-    %34:vec4<f32> = textureLoad %24, %27, %30, %33
+    %30:u32 = min %level_1, %29
+    %31:vec2<u32> = textureDimensions %24, %30
+    %32:vec2<u32> = sub %31, vec2<u32>(1u)
+    %33:vec2<u32> = min %coords_1, %32
+    %34:vec4<f32> = textureLoad %24, %33, %27, %30
     ret %34
   }
 }
 )";
 
     RobustnessConfig cfg;
-    cfg.clamp_texture = GetParam();
+    cfg.clamp_texture = GetParam().enabled;
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ(GetParam().enabled ? expect : src, str());
 }
 
-TEST_P(IR_RobustnessTest, TextureLoad_Sampled3D) {
+TEST_P(IR_BindingVariableRobustnessTest, TextureLoad_Sampled3D) {
     auto* texture = b.Var(
         "texture",
         ty.ptr(handle, ty.Get<type::SampledTexture>(type::TextureDimension::k3d, ty.f32()), read));
@@ -2404,41 +2447,41 @@ $B1: {  # root
 %load_signed = func(%coords:vec3<i32>, %level:i32):vec4<f32> {
   $B2: {
     %5:texture_3d<f32> = load %texture
-    %6:vec3<u32> = textureDimensions %5
-    %7:vec3<u32> = sub %6, vec3<u32>(1u)
-    %8:vec3<u32> = convert %coords
-    %9:vec3<u32> = min %8, %7
-    %10:u32 = textureNumLevels %5
-    %11:u32 = sub %10, 1u
-    %12:u32 = convert %level
-    %13:u32 = min %12, %11
-    %14:vec4<f32> = textureLoad %5, %9, %13
+    %6:u32 = textureNumLevels %5
+    %7:u32 = sub %6, 1u
+    %8:u32 = convert %level
+    %9:u32 = min %8, %7
+    %10:vec3<u32> = textureDimensions %5, %9
+    %11:vec3<u32> = sub %10, vec3<u32>(1u)
+    %12:vec3<u32> = convert %coords
+    %13:vec3<u32> = min %12, %11
+    %14:vec4<f32> = textureLoad %5, %13, %9
     ret %14
   }
 }
 %load_unsigned = func(%coords_1:vec3<u32>, %level_1:u32):vec4<f32> {  # %coords_1: 'coords', %level_1: 'level'
   $B3: {
     %18:texture_3d<f32> = load %texture
-    %19:vec3<u32> = textureDimensions %18
-    %20:vec3<u32> = sub %19, vec3<u32>(1u)
-    %21:vec3<u32> = min %coords_1, %20
-    %22:u32 = textureNumLevels %18
-    %23:u32 = sub %22, 1u
-    %24:u32 = min %level_1, %23
-    %25:vec4<f32> = textureLoad %18, %21, %24
+    %19:u32 = textureNumLevels %18
+    %20:u32 = sub %19, 1u
+    %21:u32 = min %level_1, %20
+    %22:vec3<u32> = textureDimensions %18, %21
+    %23:vec3<u32> = sub %22, vec3<u32>(1u)
+    %24:vec3<u32> = min %coords_1, %23
+    %25:vec4<f32> = textureLoad %18, %24, %21
     ret %25
   }
 }
 )";
 
     RobustnessConfig cfg;
-    cfg.clamp_texture = GetParam();
+    cfg.clamp_texture = GetParam().enabled;
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ(GetParam().enabled ? expect : src, str());
 }
 
-TEST_P(IR_RobustnessTest, TextureLoad_Multisampled2D) {
+TEST_P(IR_BindingVariableRobustnessTest, TextureLoad_Multisampled2D) {
     auto* texture = b.Var(
         "texture",
         ty.ptr(handle, ty.Get<type::MultisampledTexture>(type::TextureDimension::k2d, ty.f32()),
@@ -2523,13 +2566,13 @@ $B1: {  # root
 )";
 
     RobustnessConfig cfg;
-    cfg.clamp_texture = GetParam();
+    cfg.clamp_texture = GetParam().enabled;
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ(GetParam().enabled ? expect : src, str());
 }
 
-TEST_P(IR_RobustnessTest, TextureLoad_Depth2D) {
+TEST_P(IR_BindingVariableRobustnessTest, TextureLoad_Depth2D) {
     auto* texture = b.Var(
         "texture", ty.ptr(handle, ty.Get<type::DepthTexture>(type::TextureDimension::k2d), read));
     texture->SetBindingPoint(0, 0);
@@ -2589,41 +2632,41 @@ $B1: {  # root
 %load_signed = func(%coords:vec2<i32>, %level:i32):f32 {
   $B2: {
     %5:texture_depth_2d = load %texture
-    %6:vec2<u32> = textureDimensions %5
-    %7:vec2<u32> = sub %6, vec2<u32>(1u)
-    %8:vec2<u32> = convert %coords
-    %9:vec2<u32> = min %8, %7
-    %10:u32 = textureNumLevels %5
-    %11:u32 = sub %10, 1u
-    %12:u32 = convert %level
-    %13:u32 = min %12, %11
-    %14:f32 = textureLoad %5, %9, %13
+    %6:u32 = textureNumLevels %5
+    %7:u32 = sub %6, 1u
+    %8:u32 = convert %level
+    %9:u32 = min %8, %7
+    %10:vec2<u32> = textureDimensions %5, %9
+    %11:vec2<u32> = sub %10, vec2<u32>(1u)
+    %12:vec2<u32> = convert %coords
+    %13:vec2<u32> = min %12, %11
+    %14:f32 = textureLoad %5, %13, %9
     ret %14
   }
 }
 %load_unsigned = func(%coords_1:vec2<u32>, %level_1:u32):f32 {  # %coords_1: 'coords', %level_1: 'level'
   $B3: {
     %18:texture_depth_2d = load %texture
-    %19:vec2<u32> = textureDimensions %18
-    %20:vec2<u32> = sub %19, vec2<u32>(1u)
-    %21:vec2<u32> = min %coords_1, %20
-    %22:u32 = textureNumLevels %18
-    %23:u32 = sub %22, 1u
-    %24:u32 = min %level_1, %23
-    %25:f32 = textureLoad %18, %21, %24
+    %19:u32 = textureNumLevels %18
+    %20:u32 = sub %19, 1u
+    %21:u32 = min %level_1, %20
+    %22:vec2<u32> = textureDimensions %18, %21
+    %23:vec2<u32> = sub %22, vec2<u32>(1u)
+    %24:vec2<u32> = min %coords_1, %23
+    %25:f32 = textureLoad %18, %24, %21
     ret %25
   }
 }
 )";
 
     RobustnessConfig cfg;
-    cfg.clamp_texture = GetParam();
+    cfg.clamp_texture = GetParam().enabled;
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ(GetParam().enabled ? expect : src, str());
 }
 
-TEST_P(IR_RobustnessTest, TextureLoad_Depth2DArray) {
+TEST_P(IR_BindingVariableRobustnessTest, TextureLoad_Depth2DArray) {
     auto* texture =
         b.Var("texture",
               ty.ptr(handle, ty.Get<type::DepthTexture>(type::TextureDimension::k2dArray), read));
@@ -2688,48 +2731,48 @@ $B1: {  # root
 %load_signed = func(%coords:vec2<i32>, %layer:i32, %level:i32):f32 {
   $B2: {
     %6:texture_depth_2d_array = load %texture
-    %7:vec2<u32> = textureDimensions %6
-    %8:vec2<u32> = sub %7, vec2<u32>(1u)
-    %9:vec2<u32> = convert %coords
-    %10:vec2<u32> = min %9, %8
-    %11:u32 = textureNumLayers %6
+    %7:u32 = textureNumLayers %6
+    %8:u32 = sub %7, 1u
+    %9:u32 = convert %layer
+    %10:u32 = min %9, %8
+    %11:u32 = textureNumLevels %6
     %12:u32 = sub %11, 1u
-    %13:u32 = convert %layer
+    %13:u32 = convert %level
     %14:u32 = min %13, %12
-    %15:u32 = textureNumLevels %6
-    %16:u32 = sub %15, 1u
-    %17:u32 = convert %level
-    %18:u32 = min %17, %16
-    %19:f32 = textureLoad %6, %10, %14, %18
+    %15:vec2<u32> = textureDimensions %6, %14
+    %16:vec2<u32> = sub %15, vec2<u32>(1u)
+    %17:vec2<u32> = convert %coords
+    %18:vec2<u32> = min %17, %16
+    %19:f32 = textureLoad %6, %18, %10, %14
     ret %19
   }
 }
 %load_unsigned = func(%coords_1:vec2<u32>, %layer_1:u32, %level_1:u32):f32 {  # %coords_1: 'coords', %layer_1: 'layer', %level_1: 'level'
   $B3: {
     %24:texture_depth_2d_array = load %texture
-    %25:vec2<u32> = textureDimensions %24
-    %26:vec2<u32> = sub %25, vec2<u32>(1u)
-    %27:vec2<u32> = min %coords_1, %26
-    %28:u32 = textureNumLayers %24
+    %25:u32 = textureNumLayers %24
+    %26:u32 = sub %25, 1u
+    %27:u32 = min %layer_1, %26
+    %28:u32 = textureNumLevels %24
     %29:u32 = sub %28, 1u
-    %30:u32 = min %layer_1, %29
-    %31:u32 = textureNumLevels %24
-    %32:u32 = sub %31, 1u
-    %33:u32 = min %level_1, %32
-    %34:f32 = textureLoad %24, %27, %30, %33
+    %30:u32 = min %level_1, %29
+    %31:vec2<u32> = textureDimensions %24, %30
+    %32:vec2<u32> = sub %31, vec2<u32>(1u)
+    %33:vec2<u32> = min %coords_1, %32
+    %34:f32 = textureLoad %24, %33, %27, %30
     ret %34
   }
 }
 )";
 
     RobustnessConfig cfg;
-    cfg.clamp_texture = GetParam();
+    cfg.clamp_texture = GetParam().enabled;
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ(GetParam().enabled ? expect : src, str());
 }
 
-TEST_P(IR_RobustnessTest, TextureLoad_DepthMultisampled2D) {
+TEST_P(IR_BindingVariableRobustnessTest, TextureLoad_DepthMultisampled2D) {
     auto* texture = b.Var(
         "texture",
         ty.ptr(handle, ty.Get<type::DepthMultisampledTexture>(type::TextureDimension::k2d), read));
@@ -2811,13 +2854,13 @@ $B1: {  # root
 )";
 
     RobustnessConfig cfg;
-    cfg.clamp_texture = GetParam();
+    cfg.clamp_texture = GetParam().enabled;
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ(GetParam().enabled ? expect : src, str());
 }
 
-TEST_P(IR_RobustnessTest, TextureLoad_External) {
+TEST_P(IR_BindingVariableRobustnessTest, TextureLoad_External) {
     auto* texture = b.Var("texture", ty.ptr(handle, ty.Get<type::ExternalTexture>(), read));
     texture->SetBindingPoint(0, 0);
     mod.root_block->Append(texture);
@@ -2895,13 +2938,13 @@ $B1: {  # root
 )";
 
     RobustnessConfig cfg;
-    cfg.clamp_texture = GetParam();
+    cfg.clamp_texture = GetParam().enabled;
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ(GetParam().enabled ? expect : src, str());
 }
 
-TEST_P(IR_RobustnessTest, TextureLoad_Storage1D) {
+TEST_P(IR_BindingVariableRobustnessTest, TextureLoad_Storage1D) {
     auto format = core::TexelFormat::kRgba8Unorm;
     auto* texture =
         b.Var("texture",
@@ -2985,13 +3028,13 @@ $B1: {  # root
 )";
 
     RobustnessConfig cfg;
-    cfg.clamp_texture = GetParam();
+    cfg.clamp_texture = GetParam().enabled;
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ(GetParam().enabled ? expect : src, str());
 }
 
-TEST_P(IR_RobustnessTest, TextureLoad_Storage2D) {
+TEST_P(IR_BindingVariableRobustnessTest, TextureLoad_Storage2D) {
     auto format = core::TexelFormat::kRgba8Unorm;
     auto* texture =
         b.Var("texture",
@@ -3075,13 +3118,13 @@ $B1: {  # root
 )";
 
     RobustnessConfig cfg;
-    cfg.clamp_texture = GetParam();
+    cfg.clamp_texture = GetParam().enabled;
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ(GetParam().enabled ? expect : src, str());
 }
 
-TEST_P(IR_RobustnessTest, TextureLoad_Storage2DArray) {
+TEST_P(IR_BindingVariableRobustnessTest, TextureLoad_Storage2DArray) {
     auto format = core::TexelFormat::kRgba8Unorm;
     auto* texture = b.Var(
         "texture",
@@ -3148,41 +3191,41 @@ $B1: {  # root
 %load_signed = func(%coords:vec2<i32>, %layer:i32):vec4<f32> {
   $B2: {
     %5:texture_storage_2d_array<rgba8unorm, read_write> = load %texture
-    %6:vec2<u32> = textureDimensions %5
-    %7:vec2<u32> = sub %6, vec2<u32>(1u)
-    %8:vec2<u32> = convert %coords
-    %9:vec2<u32> = min %8, %7
-    %10:u32 = textureNumLayers %5
-    %11:u32 = sub %10, 1u
-    %12:u32 = convert %layer
-    %13:u32 = min %12, %11
-    %14:vec4<f32> = textureLoad %5, %9, %13
+    %6:u32 = textureNumLayers %5
+    %7:u32 = sub %6, 1u
+    %8:u32 = convert %layer
+    %9:u32 = min %8, %7
+    %10:vec2<u32> = textureDimensions %5
+    %11:vec2<u32> = sub %10, vec2<u32>(1u)
+    %12:vec2<u32> = convert %coords
+    %13:vec2<u32> = min %12, %11
+    %14:vec4<f32> = textureLoad %5, %13, %9
     ret %14
   }
 }
 %load_unsigned = func(%coords_1:vec2<u32>, %layer_1:u32):vec4<f32> {  # %coords_1: 'coords', %layer_1: 'layer'
   $B3: {
     %18:texture_storage_2d_array<rgba8unorm, read_write> = load %texture
-    %19:vec2<u32> = textureDimensions %18
-    %20:vec2<u32> = sub %19, vec2<u32>(1u)
-    %21:vec2<u32> = min %coords_1, %20
-    %22:u32 = textureNumLayers %18
-    %23:u32 = sub %22, 1u
-    %24:u32 = min %layer_1, %23
-    %25:vec4<f32> = textureLoad %18, %21, %24
+    %19:u32 = textureNumLayers %18
+    %20:u32 = sub %19, 1u
+    %21:u32 = min %layer_1, %20
+    %22:vec2<u32> = textureDimensions %18
+    %23:vec2<u32> = sub %22, vec2<u32>(1u)
+    %24:vec2<u32> = min %coords_1, %23
+    %25:vec4<f32> = textureLoad %18, %24, %21
     ret %25
   }
 }
 )";
 
     RobustnessConfig cfg;
-    cfg.clamp_texture = GetParam();
+    cfg.clamp_texture = GetParam().enabled;
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ(GetParam().enabled ? expect : src, str());
 }
 
-TEST_P(IR_RobustnessTest, TextureLoad_Storage3D) {
+TEST_P(IR_BindingVariableRobustnessTest, TextureLoad_Storage3D) {
     auto format = core::TexelFormat::kRgba8Unorm;
     auto* texture =
         b.Var("texture",
@@ -3266,17 +3309,17 @@ $B1: {  # root
 )";
 
     RobustnessConfig cfg;
-    cfg.clamp_texture = GetParam();
+    cfg.clamp_texture = GetParam().enabled;
     Run(Robustness, cfg);
 
-    EXPECT_EQ(GetParam() ? expect : src, str());
+    EXPECT_EQ(GetParam().enabled ? expect : src, str());
 }
 
 ////////////////////////////////////////////////////////////////
 // Test things that should not be clamped.
 ////////////////////////////////////////////////////////////////
 
-TEST_P(IR_RobustnessTest, NoModify_TextureStore) {
+TEST_P(IR_BindingVariableRobustnessTest, NoModify_TextureStore) {
     auto format = core::TexelFormat::kRgba8Unorm;
     auto* texture =
         b.Var("texture",
@@ -3315,11 +3358,155 @@ $B1: {  # root
     auto* expect = src;
 
     RobustnessConfig cfg;
-    cfg.clamp_texture = GetParam();
+    cfg.clamp_texture = GetParam().enabled;
+    if (GetParam().ignore_bindings) {
+        cfg.bindings_ignored = {{0, 0}};
+    }
+    Run(Robustness, cfg);
+
+    EXPECT_EQ((GetParam().enabled && !GetParam().ignore_bindings) ? expect : src, str());
+}
+
+// Test that ignoring a subset of bindings works
+TEST_P(IR_RobustnessTest, BindingsIgnored_Subset) {
+    auto* vec1 = b.Var("vec1", ty.ptr(storage, ty.vec4<u32>()));
+    auto* vec2 = b.Var("vec2", ty.ptr(storage, ty.vec4<u32>()));
+    auto* arr1 = b.Var("arr1", ty.ptr(storage, ty.array<u32, 4>()));
+    auto* arr2 = b.Var("arr2", ty.ptr(storage, ty.array<u32, 4>()));
+    vec1->SetBindingPoint(1, 2);
+    vec2->SetBindingPoint(2, 3);  // Ignored
+    arr1->SetBindingPoint(4, 5);
+    arr2->SetBindingPoint(6, 7);  // Ignored
+    mod.root_block->Append(vec1);
+    mod.root_block->Append(vec2);
+    mod.root_block->Append(arr1);
+    mod.root_block->Append(arr2);
+
+    auto* func = b.Function("foo", ty.void_());
+    auto* idx = b.FunctionParam("idx", ty.u32());
+    func->SetParams({idx});
+    b.Append(func->Block(), [&] {
+        b.LoadVectorElement(vec1, idx);
+        b.LoadVectorElement(vec2, idx);
+
+        b.StoreVectorElement(vec1, idx, b.Constant(0_u));
+        b.StoreVectorElement(vec2, idx, b.Constant(0_u));
+
+        auto* access_arr1 = b.Access(ty.ptr<storage, u32>(), arr1, idx);
+        b.Load(access_arr1);
+        auto* access_arr2 = b.Access(ty.ptr<storage, u32>(), arr2, idx);
+        b.Load(access_arr2);
+
+        b.Return(func);
+    });
+
+    auto* src = R"(
+$B1: {  # root
+  %vec1:ptr<storage, vec4<u32>, read_write> = var @binding_point(1, 2)
+  %vec2:ptr<storage, vec4<u32>, read_write> = var @binding_point(2, 3)
+  %arr1:ptr<storage, array<u32, 4>, read_write> = var @binding_point(4, 5)
+  %arr2:ptr<storage, array<u32, 4>, read_write> = var @binding_point(6, 7)
+}
+
+%foo = func(%idx:u32):void {
+  $B2: {
+    %7:u32 = load_vector_element %vec1, %idx
+    %8:u32 = load_vector_element %vec2, %idx
+    store_vector_element %vec1, %idx, 0u
+    store_vector_element %vec2, %idx, 0u
+    %9:ptr<storage, u32, read_write> = access %arr1, %idx
+    %10:u32 = load %9
+    %11:ptr<storage, u32, read_write> = access %arr2, %idx
+    %12:u32 = load %11
+    ret
+  }
+}
+)";
+    EXPECT_EQ(src, str());
+
+    auto* expect = R"(
+$B1: {  # root
+  %vec1:ptr<storage, vec4<u32>, read_write> = var @binding_point(1, 2)
+  %vec2:ptr<storage, vec4<u32>, read_write> = var @binding_point(2, 3)
+  %arr1:ptr<storage, array<u32, 4>, read_write> = var @binding_point(4, 5)
+  %arr2:ptr<storage, array<u32, 4>, read_write> = var @binding_point(6, 7)
+}
+
+%foo = func(%idx:u32):void {
+  $B2: {
+    %7:u32 = min %idx, 3u
+    %8:u32 = load_vector_element %vec1, %7
+    %9:u32 = load_vector_element %vec2, %idx
+    %10:u32 = min %idx, 3u
+    store_vector_element %vec1, %10, 0u
+    store_vector_element %vec2, %idx, 0u
+    %11:u32 = min %idx, 3u
+    %12:ptr<storage, u32, read_write> = access %arr1, %11
+    %13:u32 = load %12
+    %14:ptr<storage, u32, read_write> = access %arr2, %idx
+    %15:u32 = load %14
+    ret
+  }
+}
+)";
+
+    RobustnessConfig cfg;
+    cfg.clamp_storage = GetParam();
+    cfg.bindings_ignored = {{2, 3}, {6, 7}};
     Run(Robustness, cfg);
 
     EXPECT_EQ(GetParam() ? expect : src, str());
 }
 
+// Test that bindings_ignored works via lets
+TEST_P(IR_RobustnessTest, BindingsIgnored_ViaLets) {
+    auto* arr = b.Var("arr", ty.ptr(storage, ty.array<u32, 4>()));
+    arr->SetBindingPoint(0, 0);
+    mod.root_block->Append(arr);
+
+    auto* func = b.Function("foo", ty.void_());
+    auto* idx = b.FunctionParam("idx", ty.u32());
+    func->SetParams({idx});
+    b.Append(func->Block(), [&] {
+        auto* p1 = b.Let("p1", arr);
+        auto* p2 = b.Let("p2", p1);
+        auto* access = b.Access(ty.ptr<storage, u32>(), p2, idx);
+        b.Load(access);
+        b.Return(func);
+    });
+
+    auto* src = R"(
+$B1: {  # root
+  %arr:ptr<storage, array<u32, 4>, read_write> = var @binding_point(0, 0)
+}
+
+%foo = func(%idx:u32):void {
+  $B2: {
+    %p1:ptr<storage, array<u32, 4>, read_write> = let %arr
+    %p2:ptr<storage, array<u32, 4>, read_write> = let %p1
+    %6:ptr<storage, u32, read_write> = access %p2, %idx
+    %7:u32 = load %6
+    ret
+  }
+}
+)";
+    EXPECT_EQ(src, str());
+
+    RobustnessConfig cfg;
+    cfg.clamp_storage = GetParam();
+    cfg.bindings_ignored = {{0, 0}};
+    Run(Robustness, cfg);
+
+    EXPECT_EQ(src, str());
+}
+
+INSTANTIATE_TEST_SUITE_P(, IR_RobustnessTest, testing::Values(false, true));
+
+INSTANTIATE_TEST_SUITE_P(,
+                         IR_BindingVariableRobustnessTest,
+                         testing::Values(BindingVariableCase{true, false},
+                                         BindingVariableCase{false, false},
+                                         BindingVariableCase{true, true},
+                                         BindingVariableCase{false, false}));
 }  // namespace
 }  // namespace tint::core::ir::transform

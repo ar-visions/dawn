@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 struct main_outputs {
   float4 tint_symbol : SV_Position;
@@ -30,5 +30,7 @@ main_outputs main(main_inputs inputs) {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x000001FF902DDBC0(10,3-11): error X3000: unrecognized identifier 'float16_t'
+<scrubbed_path>(10,3-11): error X3000: unrecognized identifier 'float16_t'
 
+
+tint executable returned error: exit status 1

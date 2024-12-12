@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 struct S {
   int before;
@@ -85,9 +85,9 @@ void f_inner(uint tint_local_index) {
   S v_22[4] = v_14(0u);
   w = v_22;
   S v_23 = v_10(256u);
-  w[1] = v_23;
-  w[3].m = v_2(260u);
-  w[1].m[0] = tint_bitcast_to_f16(u[0u].z).yx;
+  w[int(1)] = v_23;
+  w[int(3)].m = v_2(260u);
+  w[int(1)].m[int(0)] = tint_bitcast_to_f16(u[0u].z).yx;
 }
 
 [numthreads(1, 1, 1)]
@@ -96,5 +96,7 @@ void f(f_inputs inputs) {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x00000216685B2AD0(3,10-18): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(3,10-18): error X3000: syntax error: unexpected token 'float16_t'
 
+
+tint executable returned error: exit status 1

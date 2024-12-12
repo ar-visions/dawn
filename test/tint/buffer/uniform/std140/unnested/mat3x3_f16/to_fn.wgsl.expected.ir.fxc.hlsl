@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 
 cbuffer cbuffer_u : register(b0) {
@@ -41,7 +41,9 @@ void f() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x0000024F4E1A1E40(5,15-23): error X3000: syntax error: unexpected token 'float16_t'
-c:\src\dawn\Shader@0x0000024F4E1A1E40(8,15-23): error X3000: syntax error: unexpected token 'float16_t'
-c:\src\dawn\Shader@0x0000024F4E1A1E40(11,8-16): error X3000: unrecognized identifier 'float16_t'
+<scrubbed_path>(5,15-23): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(8,15-23): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(11,8-16): error X3000: unrecognized identifier 'float16_t'
 
+
+tint executable returned error: exit status 1

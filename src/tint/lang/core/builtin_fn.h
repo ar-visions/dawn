@@ -40,7 +40,7 @@
 #include <cstdint>
 #include <string>
 
-#include "src/tint/utils/traits/traits.h"
+#include "src/tint/utils/rtti/traits.h"
 
 // \cond DO_NOT_DOCUMENT
 namespace tint::core {
@@ -168,11 +168,30 @@ enum class BuiltinFn : uint8_t {
     kAtomicExchange,
     kAtomicCompareExchangeWeak,
     kSubgroupBallot,
+    kSubgroupElect,
     kSubgroupBroadcast,
+    kSubgroupBroadcastFirst,
+    kSubgroupShuffle,
+    kSubgroupShuffleXor,
+    kSubgroupShuffleUp,
+    kSubgroupShuffleDown,
     kSubgroupAdd,
+    kSubgroupInclusiveAdd,
     kSubgroupExclusiveAdd,
     kSubgroupMul,
+    kSubgroupInclusiveMul,
     kSubgroupExclusiveMul,
+    kSubgroupAnd,
+    kSubgroupOr,
+    kSubgroupXor,
+    kSubgroupMin,
+    kSubgroupMax,
+    kSubgroupAll,
+    kSubgroupAny,
+    kQuadBroadcast,
+    kQuadSwapX,
+    kQuadSwapY,
+    kQuadSwapDiagonal,
     kNone,
 };
 
@@ -316,11 +335,30 @@ constexpr BuiltinFn kBuiltinFns[] = {
     BuiltinFn::kAtomicExchange,
     BuiltinFn::kAtomicCompareExchangeWeak,
     BuiltinFn::kSubgroupBallot,
+    BuiltinFn::kSubgroupElect,
     BuiltinFn::kSubgroupBroadcast,
+    BuiltinFn::kSubgroupBroadcastFirst,
+    BuiltinFn::kSubgroupShuffle,
+    BuiltinFn::kSubgroupShuffleXor,
+    BuiltinFn::kSubgroupShuffleUp,
+    BuiltinFn::kSubgroupShuffleDown,
     BuiltinFn::kSubgroupAdd,
+    BuiltinFn::kSubgroupInclusiveAdd,
     BuiltinFn::kSubgroupExclusiveAdd,
     BuiltinFn::kSubgroupMul,
+    BuiltinFn::kSubgroupInclusiveMul,
     BuiltinFn::kSubgroupExclusiveMul,
+    BuiltinFn::kSubgroupAnd,
+    BuiltinFn::kSubgroupOr,
+    BuiltinFn::kSubgroupXor,
+    BuiltinFn::kSubgroupMin,
+    BuiltinFn::kSubgroupMax,
+    BuiltinFn::kSubgroupAll,
+    BuiltinFn::kSubgroupAny,
+    BuiltinFn::kQuadBroadcast,
+    BuiltinFn::kQuadSwapX,
+    BuiltinFn::kQuadSwapY,
+    BuiltinFn::kQuadSwapDiagonal,
 };
 
 /// All builtin function names
@@ -446,11 +484,30 @@ constexpr const char* kBuiltinFnStrings[] = {
     "atomicExchange",
     "atomicCompareExchangeWeak",
     "subgroupBallot",
+    "subgroupElect",
     "subgroupBroadcast",
+    "subgroupBroadcastFirst",
+    "subgroupShuffle",
+    "subgroupShuffleXor",
+    "subgroupShuffleUp",
+    "subgroupShuffleDown",
     "subgroupAdd",
+    "subgroupInclusiveAdd",
     "subgroupExclusiveAdd",
     "subgroupMul",
+    "subgroupInclusiveMul",
     "subgroupExclusiveMul",
+    "subgroupAnd",
+    "subgroupOr",
+    "subgroupXor",
+    "subgroupMin",
+    "subgroupMax",
+    "subgroupAll",
+    "subgroupAny",
+    "quadBroadcast",
+    "quadSwapX",
+    "quadSwapY",
+    "quadSwapDiagonal",
 };
 
 /// Determines if the given `f` is a coarse derivative.

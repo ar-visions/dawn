@@ -1,36 +1,36 @@
-SKIP: FAILED
-
 
 [numthreads(1, 1, 1)]
 void f() {
   {
-    int i = 0;
+    int i = int(0);
     while(true) {
-      if ((i < 4)) {
+      if ((i < int(4))) {
       } else {
         break;
       }
+      bool tint_continue = false;
       switch(i) {
-        case 0:
+        case int(0):
         {
-          {
-            i = (i + 1);
-          }
-          continue;
+          tint_continue = true;
+          break;
         }
         default:
         {
           break;
         }
       }
+      if (tint_continue) {
+        {
+          i = (i + int(1));
+        }
+        continue;
+      }
       {
-        i = (i + 1);
+        i = (i + int(1));
       }
       continue;
     }
   }
 }
-
-FXC validation failure:
-c:\src\dawn\Shader@0x0000028661043900(17,11-19): error X3708: continue cannot be used in a switch
 

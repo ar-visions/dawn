@@ -30,7 +30,7 @@
 #ifndef {{API}}_CPP_PRINT_H_
 #define {{API}}_CPP_PRINT_H_
 
-#include "dawn/{{api}}_cpp.h"
+#include "{{api}}/{{api}}_cpp.h"
 
 #include <iomanip>
 #include <ios>
@@ -39,7 +39,7 @@
 
 namespace {{metadata.namespace}} {
 
-  {% for type in by_category["enum"] %}
+  {% for type in by_category["enum"] if type.name.get() != "optional bool" %}
       template <typename CharT, typename Traits>
       std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& o, {{as_cppType(type.name)}} value) {
           switch (value) {
@@ -99,6 +99,12 @@ namespace {{metadata.namespace}} {
         return o;
       }
   {% endfor %}
+
+  template <typename CharT, typename Traits>
+  std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& o, StringView value) {
+      o << std::string_view(value);
+      return o;
+  }
 
 }  // namespace {{metadata.namespace}}
 

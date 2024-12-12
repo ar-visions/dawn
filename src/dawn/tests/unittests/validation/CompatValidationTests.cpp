@@ -25,6 +25,7 @@
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#include <algorithm>
 #include <limits>
 #include <string>
 #include <vector>
@@ -202,7 +203,7 @@ TEST_F(CompatValidationTest, CanNotCreatePipelineWithNonZeroDepthBiasClamp) {
 
     wgpu::DepthStencilState* depthStencil =
         testDescriptor.EnableDepthStencil(wgpu::TextureFormat::Depth24Plus);
-    depthStencil->depthWriteEnabled = true;
+    depthStencil->depthWriteEnabled = wgpu::OptionalBool::True;
     depthStencil->depthBias = 0;
     depthStencil->depthBiasSlopeScale = 0;
 
@@ -213,24 +214,384 @@ TEST_F(CompatValidationTest, CanNotCreatePipelineWithNonZeroDepthBiasClamp) {
     ASSERT_DEVICE_ERROR(device.CreateRenderPipeline(&testDescriptor));
 }
 
+TEST_F(CompatValidationTest, CanNotCreatePipelineWithTextureLoadOfDepthTexture) {
+    wgpu::ShaderModule module = utils::CreateShaderModule(device, R"(
+        @group(0) @binding(0) var<storage, read_write> dstBuf : array<vec4f>;
+        @group(0) @binding(1) var tex1 : texture_2d<f32>;
+        @group(0) @binding(2) var tex2 : texture_depth_2d;
+        @group(0) @binding(3) var tex3 : texture_depth_2d_array;
+        @group(0) @binding(4) var tex4 : texture_depth_multisampled_2d;
+
+        @compute @workgroup_size(1) fn main1() {
+            dstBuf[0] = textureLoad(tex1, vec2(0), 0);
+        }
+
+        @compute @workgroup_size(1) fn main2() {
+            dstBuf[0] = vec4f(textureLoad(tex2, vec2(0), 0));
+        }
+
+        @compute @workgroup_size(1) fn main3() {
+            dstBuf[0] = vec4f(textureLoad(tex3, vec2(0), 0, 0));
+        }
+
+        @compute @workgroup_size(1) fn main4() {
+            dstBuf[4] = vec4f(textureLoad(tex4, vec2(0), 0));
+        }
+    )");
+
+    const char* entryPoints[] = {"main1", "main2", "main3", "main4"};
+    for (auto entryPoint : entryPoints) {
+        wgpu::ComputePipelineDescriptor pDesc;
+        pDesc.compute.module = module;
+        pDesc.compute.entryPoint = entryPoint;
+        if (entryPoint == entryPoints[0]) {
+            device.CreateComputePipeline(&pDesc);
+        } else {
+            ASSERT_DEVICE_ERROR(
+                device.CreateComputePipeline(&pDesc),
+                testing::HasSubstr(
+                    "textureLoad can not be used with depth textures in compatibility mode"));
+        }
+    }
+}
+
+TEST_F(CompatValidationTest, CanNotCreatePipelineWithDepthTextureUsedWithNonComparisonSampler) {
+    wgpu::ShaderModule module = utils::CreateShaderModule(device, R"(
+        @group(1) @binding(0) var s: sampler;
+        @group(1) @binding(1) var sc: sampler_comparison;
+        @group(0) @binding(0) var tex2d : texture_depth_2d;
+        @group(0) @binding(1) var tex2dArray: texture_depth_2d_array;
+        @group(0) @binding(2) var texCube : texture_depth_cube;
+        @group(0) @binding(3) var texCubeArray : texture_depth_cube_array;
+
+        @vertex fn vs() -> @builtin(position) vec4f {
+            return vec4f(0);
+        }
+
+        // valid
+        @fragment fn main0() -> @location(0) vec4f {
+            return textureGatherCompare(tex2d, sc, vec2(0), 0) +
+                   textureGatherCompare(tex2dArray, sc, vec2(0), 0, 0) +
+                   textureGatherCompare(texCube, sc, vec3(0), 0) +
+                   textureGatherCompare(texCubeArray, sc, vec3(0), 0, 0) +
+                   vec4f(textureSampleCompare(tex2d, sc, vec2(0), 0)) +
+                   vec4f(textureSampleCompare(tex2dArray, sc, vec2(0), 0, 0)) +
+                   vec4f(textureSampleCompare(texCube, sc, vec3(0), 0)) +
+                   vec4f(textureSampleCompare(texCubeArray, sc, vec3(0), 0, 0)) +
+                   vec4f(textureSampleCompareLevel(tex2d, sc, vec2(0), 0)) +
+                   vec4f(textureSampleCompareLevel(tex2dArray, sc, vec2(0), 0, 0)) +
+                   vec4f(textureSampleCompareLevel(texCube, sc, vec3(0), 0)) +
+                   vec4f(textureSampleCompareLevel(texCubeArray, sc, vec3(0), 0, 0)) ;
+        }
+
+        @fragment fn main1() -> @location(0) vec4f {
+            return textureGather(tex2d, s, vec2(0));
+        }
+
+        @fragment fn main2() -> @location(0) vec4f {
+            return textureGather(tex2dArray, s, vec2(0), 0);
+        }
+
+        @fragment fn main3() -> @location(0) vec4f {
+            return textureGather(texCube, s, vec3(0));
+        }
+
+        @fragment fn main4() -> @location(0) vec4f {
+            return textureGather(texCubeArray, s, vec3(0), 0);
+        }
+
+        @fragment fn main5() -> @location(0) vec4f {
+            return vec4f(textureSample(tex2d, s, vec2(0)));
+        }
+
+        @fragment fn main6() -> @location(0) vec4f {
+            return vec4f(textureSample(tex2dArray, s, vec2(0), 0));
+        }
+
+        @fragment fn main7() -> @location(0) vec4f {
+            return vec4f(textureSample(texCube, s, vec3(0)));
+        }
+
+        @fragment fn main8() -> @location(0) vec4f {
+            return vec4f(textureSample(texCubeArray, s, vec3(0), 0));
+        }
+
+        @fragment fn main9() -> @location(0) vec4f {
+            return vec4f(textureSampleLevel(tex2d, s, vec2(0), 0));
+        }
+
+        @fragment fn main10() -> @location(0) vec4f {
+            return vec4f(textureSampleLevel(tex2dArray, s, vec2(0), 0, 0));
+        }
+
+        @fragment fn main11() -> @location(0) vec4f {
+            return vec4f(textureSampleLevel(texCube, s, vec3(0), 0));
+        }
+
+        @fragment fn main12() -> @location(0) vec4f {
+            return vec4f(textureSampleLevel(texCubeArray, s, vec3(0), 0, 0));
+        }
+    )");
+
+    const char* entryPoints[] = {"main0", "main1", "main2", "main3",  "main4",  "main5", "main6",
+                                 "main7", "main8", "main9", "main10", "main11", "main12"};
+    for (auto entryPoint : entryPoints) {
+        utils::ComboRenderPipelineDescriptor pDesc;
+        pDesc.vertex.module = module;
+        pDesc.cFragment.module = module;
+        pDesc.cFragment.entryPoint = entryPoint;
+        pDesc.cFragment.targetCount = 1;
+        pDesc.cTargets[0].format = wgpu::TextureFormat::RGBA8Unorm;
+        if (entryPoint == entryPoints[0]) {
+            device.CreateRenderPipeline(&pDesc);
+        } else {
+            ASSERT_DEVICE_ERROR(
+                device.CreateRenderPipeline(&pDesc),
+                testing::HasSubstr("texture_depth_xx can not be used with non-comparison samplers "
+                                   "in compatibility mode"));
+        }
+    }
+}
+
+TEST_F(CompatValidationTest, CanNotUseTooManyTextureSamplerCombos) {
+    wgpu::SupportedLimits limits;
+    device.GetLimits(&limits);
+    uint32_t maxCombos = std::min(limits.limits.maxSampledTexturesPerShaderStage,
+                                  limits.limits.maxSamplersPerShaderStage);
+
+    struct Test {
+        bool expectSuccess;
+        uint32_t numCombos;
+        uint32_t numNonSamplerUsages;
+        uint32_t numExternalTextures;
+        bool useSameExternalTexture;
+        wgpu::ShaderStage stages;
+    };
+    // clang-format off
+    Test comboTests[] = {
+        //                     num                 use
+        //                     non        num      same
+        //                     sampler    external external
+        // pass numCombos      uses       textures tex        stage
+        {true , maxCombos    , 0        , 0      , false, wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment},
+        {true , 1            , maxCombos, 0      , false, wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment},
+        {false, 2            , maxCombos, 0      , false, wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment},
+        {true , maxCombos - 4, 0        , 1      , false, wgpu::ShaderStage::Vertex},
+        {false, maxCombos - 3, 0        , 1      , false, wgpu::ShaderStage::Vertex},
+        {true , maxCombos - 8, 0        , 2      , false, wgpu::ShaderStage::Vertex},
+        {false, maxCombos - 7, 0        , 2      , false, wgpu::ShaderStage::Vertex},
+        {true , maxCombos - 7, 0        , 2      , true,  wgpu::ShaderStage::Vertex},
+        {false, maxCombos - 6, 0        , 2      , true,  wgpu::ShaderStage::Vertex},
+        {true , maxCombos - 4, 0        , 1      , false, wgpu::ShaderStage::Fragment},
+        {false, maxCombos - 3, 0        , 1      , false, wgpu::ShaderStage::Fragment},
+        {true , maxCombos - 8, 0        , 2      , false, wgpu::ShaderStage::Fragment},
+        {false, maxCombos - 7, 0        , 2      , false, wgpu::ShaderStage::Fragment},
+        {true , maxCombos - 7, 0        , 2      , true,  wgpu::ShaderStage::Fragment},
+        {false, maxCombos - 6, 0        , 2      , true,  wgpu::ShaderStage::Fragment},
+        {false, maxCombos + 1, 0        , 0      , false, wgpu::ShaderStage::Vertex},
+        {false, maxCombos + 1, 0        , 0      , false, wgpu::ShaderStage::Fragment},
+    };
+    // clang-format on
+    for (const auto& test : comboTests) {
+        uint32_t maxTexturesPerShaderStage =
+            limits.limits.maxSampledTexturesPerShaderStage - (test.numExternalTextures * 3);
+        auto numCombos = test.numCombos;
+        std::vector<std::string> textureDeclarations[2];
+        std::vector<std::string> samplerDeclarations[2];
+        std::vector<std::string> usages[2];
+        for (uint32_t stage = 0; stage < 2; ++stage) {
+            uint32_t count = 0;
+            for (uint32_t t = 0; count < numCombos && t < maxTexturesPerShaderStage; ++t) {
+                textureDeclarations[stage].push_back(
+                    absl::StrFormat("@group(%u) @binding(%u) var t%u_%u: texture_2d<f32>;",
+                                    stage * 2, t, stage, t));
+                for (uint32_t s = 0;
+                     count < numCombos && t < limits.limits.maxSamplersPerShaderStage; ++s) {
+                    if (t == 0) {
+                        samplerDeclarations[stage].push_back(
+                            absl::StrFormat("@group(%u) @binding(%u) var s%u_%u: sampler;",
+                                            (stage * 2) + 1, s, stage, s));
+                    }
+                    usages[stage].push_back(
+                        absl::StrFormat("c += textureSampleLevel(t%u_%u, s%u_%u, vec2f(0), 0);",
+                                        stage, t, stage, s));
+                    ++count;
+                }
+            }
+
+            for (uint32_t t = 0; t < test.numNonSamplerUsages; ++t) {
+                if (t >= textureDeclarations[stage].size()) {
+                    textureDeclarations[stage].push_back(
+                        absl::StrFormat("@group(%u) @binding(%u) var t%u_%u: texture_2d<f32>;",
+                                        stage * 2, t, stage, t));
+                }
+                usages[stage].push_back(
+                    absl::StrFormat("c += textureLoad(t%u_%u, vec2u(0), 0);", stage, t));
+            }
+
+            for (uint32_t t = 0; t < test.numExternalTextures; ++t) {
+                if (t == 0 || !test.useSameExternalTexture) {
+                    auto et = textureDeclarations[stage].size() + t;
+                    textureDeclarations[stage].push_back(
+                        absl::StrFormat("@group(%u) @binding(%u) var e%u_%u: texture_external;",
+                                        stage * 2, et, stage, t));
+                }
+                usages[stage].push_back(
+                    absl::StrFormat("c += textureSampleBaseClampToEdge(e%u_%u, s%u_%u, vec2f(0));",
+                                    stage, test.useSameExternalTexture ? 0 : t, stage,
+                                    test.useSameExternalTexture ? t : 0));
+            }
+        }
+
+        auto wgsl =
+            absl::StrFormat(R"(
+%s
+%s
+
+%s
+%s
+
+fn usage0() -> vec4f {
+  var c: vec4f;
+  %s
+  return c;
+}
+
+fn usage1() -> vec4f {
+  var c: vec4f;
+  %s
+  return c;
+}
+
+@vertex fn vs() -> @builtin(position) vec4f {
+  _ = %s;
+  return vec4f(0);
+}
+
+@group(2) @binding(0) var tt: texture_2d<f32>;
+
+@fragment fn fs() -> @location(0) vec4f {
+  return %s;
+}
+        )",
+                            absl::StrJoin(textureDeclarations[0], "\n"),
+                            absl::StrJoin(samplerDeclarations[0], "\n"),
+                            absl::StrJoin(textureDeclarations[1], "\n"),
+                            absl::StrJoin(samplerDeclarations[1], "\n"),
+                            absl::StrJoin(usages[0], "\n  "), absl::StrJoin(usages[1], "\n  "),
+                            test.stages & wgpu::ShaderStage::Vertex ? "usage0()" : "vec4f(0)",
+                            test.stages & wgpu::ShaderStage::Fragment ? "usage1()" : "vec4f(0)");
+
+        wgpu::ShaderModule module = utils::CreateShaderModule(device, wgsl.c_str());
+        utils::ComboRenderPipelineDescriptor descriptor;
+        descriptor.vertex.module = module;
+        descriptor.cFragment.module = module;
+        descriptor.cFragment.targetCount = 1;
+        descriptor.cTargets[0].format = wgpu::TextureFormat::RGBA8Unorm;
+
+        if (test.expectSuccess) {
+            device.CreateRenderPipeline(&descriptor);
+        } else {
+            ASSERT_DEVICE_ERROR(device.CreateRenderPipeline(&descriptor),
+                                testing::HasSubstr("compat"));
+        }
+    }
+}
+
 TEST_F(CompatValidationTest, CanNotUseSampleMask) {
-    auto wgsl = R"(
+    wgpu::ShaderModule moduleSampleMaskOutput = utils::CreateShaderModule(device, R"(
+        @vertex fn vs() -> @builtin(position) vec4f {
+            return vec4f(1);
+        }
         struct Output {
             @builtin(sample_mask) mask_out: u32,
             @location(0) color : vec4f,
         }
-    )";
-    ASSERT_DEVICE_ERROR(utils::CreateShaderModule(device, wgsl),  //
-                        testing::HasSubstr("sample_mask"));
+        @fragment fn fsWithoutSampleMaskUsage() -> @location(0) vec4f {
+            return vec4f(1.0, 1.0, 1.0, 1.0);
+        }
+        @fragment fn fsWithSampleMaskUsage() -> Output {
+            var o: Output;
+            // We need to make sure this sample_mask isn't optimized out even its value equals "no op".
+            o.mask_out = 0xFFFFFFFFu;
+            o.color = vec4f(1.0, 1.0, 1.0, 1.0);
+            return o;
+        }
+    )");
+
+    // Check we can use a fragment shader that doesn't use sample_mask from
+    // the same module as one that does.
+    {
+        utils::ComboRenderPipelineDescriptor descriptor;
+        descriptor.vertex.module = moduleSampleMaskOutput;
+        descriptor.cFragment.module = moduleSampleMaskOutput;
+        descriptor.cFragment.entryPoint = "fsWithoutSampleMaskUsage";
+        descriptor.multisample.count = 4;
+        descriptor.multisample.alphaToCoverageEnabled = false;
+
+        device.CreateRenderPipeline(&descriptor);
+    }
+
+    // Check we can not use a fragment shader that uses sample_mask.
+    {
+        utils::ComboRenderPipelineDescriptor descriptor;
+        descriptor.vertex.module = moduleSampleMaskOutput;
+        descriptor.cFragment.module = moduleSampleMaskOutput;
+        descriptor.cFragment.entryPoint = "fsWithSampleMaskUsage";
+        descriptor.multisample.count = 4;
+        descriptor.multisample.alphaToCoverageEnabled = false;
+
+        ASSERT_DEVICE_ERROR(device.CreateRenderPipeline(&descriptor),
+                            testing::HasSubstr("sample_mask"));
+    }
 }
 
-TEST_F(CompatValidationTest, CanNotUseSampleIndex) {
-    auto wgsl = R"(
-        @fragment fn fsWithSampleIndexUsage(@builtin(sample_index) sNdx: u32) {
+TEST_F(CompatValidationTest, CanNotUseFragmentShaderWithSampleIndex) {
+    wgpu::ShaderModule moduleSampleMaskOutput = utils::CreateShaderModule(device, R"(
+        @vertex fn vs() -> @builtin(position) vec4f {
+            return vec4f(1);
         }
-    )";
-    ASSERT_DEVICE_ERROR(utils::CreateShaderModule(device, wgsl),
-                        testing::HasSubstr("sample_index"));
+        struct Output {
+            @location(0) color : vec4f,
+        }
+        @fragment fn fsWithoutSampleIndexUsage() -> @location(0) vec4f {
+            return vec4f(1.0, 1.0, 1.0, 1.0);
+        }
+        @fragment fn fsWithSampleIndexUsage(@builtin(sample_index) sNdx: u32) -> Output {
+            var o: Output;
+            _ = sNdx;
+            o.color = vec4f(1.0, 1.0, 1.0, 1.0);
+            return o;
+        }
+    )");
+
+    // Check we can use a fragment shader that doesn't use sample_index from
+    // the same module as one that does.
+    {
+        utils::ComboRenderPipelineDescriptor descriptor;
+        descriptor.vertex.module = moduleSampleMaskOutput;
+        descriptor.vertex.entryPoint = "vs";
+        descriptor.cFragment.module = moduleSampleMaskOutput;
+        descriptor.cFragment.entryPoint = "fsWithoutSampleIndexUsage";
+        descriptor.multisample.count = 4;
+        descriptor.multisample.alphaToCoverageEnabled = false;
+
+        device.CreateRenderPipeline(&descriptor);
+    }
+
+    // Check we can not use a fragment shader that uses sample_index.
+    {
+        utils::ComboRenderPipelineDescriptor descriptor;
+        descriptor.vertex.module = moduleSampleMaskOutput;
+        descriptor.vertex.entryPoint = "vs";
+        descriptor.cFragment.module = moduleSampleMaskOutput;
+        descriptor.cFragment.entryPoint = "fsWithSampleIndexUsage";
+        descriptor.multisample.count = 4;
+        descriptor.multisample.alphaToCoverageEnabled = false;
+
+        ASSERT_DEVICE_ERROR(device.CreateRenderPipeline(&descriptor),
+                            testing::HasSubstr("sample_index"));
+    }
 }
 
 TEST_F(CompatValidationTest, CanNotUseShaderWithUnsupportedInterpolateTypeOrSampling) {
@@ -250,15 +611,44 @@ TEST_F(CompatValidationTest, CanNotUseShaderWithUnsupportedInterpolateTypeOrSamp
                 v.color = vec4f(1);
                 return v;
             }
+            @fragment fn fsWithoutBadInterpolationUsage() -> @location(0) vec4f {
+                return vec4f(1);
+            }
+            @fragment fn fsWithBadInterpolationUsage1(v: Vertex) -> @location(0) vec4f {
+                return vec4f(1);
+            }
+            @fragment fn fsWithBadInterpolationUsage2(v: Vertex) -> @location(0) vec4f {
+                return v.pos;
+            }
+            @fragment fn fsWithBadInterpolationUsage3(v: Vertex) -> @location(0) vec4f {
+                return v.color;
+            }
         )",
                                     interpolateParam);
-        if (strcmp(interpolateParam, "perspective") == 0) {
-            wgpu::ShaderModule moduleInterpolationLinear =
-                utils::CreateShaderModule(device, wgsl.c_str());
-        } else {
-            ASSERT_DEVICE_ERROR(wgpu::ShaderModule moduleInterpolationLinear =
-                                    utils::CreateShaderModule(device, wgsl.c_str()),
-                                testing::HasSubstr("in compatibility mode"));
+        wgpu::ShaderModule moduleInterpolationLinear =
+            utils::CreateShaderModule(device, wgsl.c_str());
+
+        static const char* entryPoints[] = {
+            "fsWithoutBadInterpolationUsage",
+            "fsWithBadInterpolationUsage1",
+            "fsWithBadInterpolationUsage2",
+            "fsWithBadInterpolationUsage3",
+        };
+        for (auto entryPoint : entryPoints) {
+            utils::ComboRenderPipelineDescriptor descriptor;
+            descriptor.vertex.module = moduleInterpolationLinear;
+            descriptor.cFragment.module = moduleInterpolationLinear;
+            descriptor.cFragment.entryPoint = entryPoint;
+
+            bool shouldSucceed =
+                entryPoint == entryPoints[0] || interpolateParam == interpolateParams[0];
+
+            if (shouldSucceed) {
+                device.CreateRenderPipeline(&descriptor);
+            } else {
+                ASSERT_DEVICE_ERROR(device.CreateRenderPipeline(&descriptor),
+                                    testing::HasSubstr("in compatibility mode"));
+            }
         }
     }
 }

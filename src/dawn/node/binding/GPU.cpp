@@ -145,6 +145,17 @@ interop::Promise<std::optional<interop::Interface<interop::GPUAdapter>>> GPU::re
     nativeOptions.forceFallbackAdapter = options.forceFallbackAdapter;
     nativeOptions.compatibilityMode = options.compatibilityMode;
 
+    // Convert the feature level.
+    nativeOptions.featureLevel = FeatureLevel::Undefined;
+    if (options.featureLevel == "compatibility") {
+        nativeOptions.featureLevel = FeatureLevel::Compatibility;
+    } else if (options.featureLevel == "core") {
+        nativeOptions.featureLevel = FeatureLevel::Core;
+    } else {
+        promise.Resolve({});
+        return promise;
+    }
+
     // Convert the power preference.
     nativeOptions.powerPreference = PowerPreference::Undefined;
     if (options.powerPreference.has_value()) {
@@ -202,10 +213,15 @@ interop::Promise<std::optional<interop::Interface<interop::GPUAdapter>>> GPU::re
     DawnTogglesDescriptor togglesDescriptor = togglesLoader.GetDescriptor();
     nativeOptions.nextInChain = &togglesDescriptor;
 
-    auto adapters = instance_->EnumerateAdapters(&nativeOptions);
-    if (adapters.empty()) {
+    auto nativeAdapters = instance_->EnumerateAdapters(&nativeOptions);
+    if (nativeAdapters.empty()) {
         promise.Resolve({});
         return promise;
+    }
+
+    std::vector<wgpu::Adapter> adapters(nativeAdapters.size());
+    for (uint32_t i = 0; i < nativeAdapters.size(); ++i) {
+        adapters[i] = wgpu::Adapter(nativeAdapters[i].Get());
     }
 
     // Check for specific adapter device name.
@@ -215,19 +231,23 @@ interop::Promise<std::optional<interop::Interface<interop::GPUAdapter>>> GPU::re
         deviceName = *f;
     }
 
-    dawn::native::Adapter* adapter = nullptr;
-    for (auto& a : adapters) {
+    dawn::native::Adapter* nativeAdapter = nullptr;
+    AdapterInfo* nativeAdapterInfo = nullptr;
+    for (uint32_t i = 0; i < nativeAdapters.size(); ++i) {
         wgpu::AdapterInfo info;
-        a.GetInfo(&info);
-        if (!deviceName.empty() && info.device &&
-            std::string(info.device).find(deviceName) == std::string::npos) {
+        adapters[i].GetInfo(&info);
+
+        if (!deviceName.empty() &&
+            std::string_view(info.device).find(deviceName) == std::string::npos) {
             continue;
         }
-        adapter = &a;
+
+        nativeAdapter = &nativeAdapters[i];
+        nativeAdapterInfo = &info;
         break;
     }
 
-    if (!adapter) {
+    if (!nativeAdapter) {
         std::stringstream msg;
         if (!forceBackend.empty() || deviceName.empty()) {
             msg << "no adapter ";
@@ -255,12 +275,10 @@ interop::Promise<std::optional<interop::Interface<interop::GPUAdapter>>> GPU::re
     }
 
     if (flags_.Get("verbose")) {
-        wgpu::AdapterInfo info;
-        adapter->GetInfo(&info);
-        printf("using GPU adapter: %s\n", info.device);
+        std::cout << "using GPU adapter: " << nativeAdapterInfo->device << "\n";
     }
 
-    auto gpuAdapter = GPUAdapter::Create<GPUAdapter>(env, *adapter, flags_, async_);
+    auto gpuAdapter = GPUAdapter::Create<GPUAdapter>(env, *nativeAdapter, flags_, async_);
     promise.Resolve(std::optional<interop::Interface<interop::GPUAdapter>>(gpuAdapter));
     return promise;
 }

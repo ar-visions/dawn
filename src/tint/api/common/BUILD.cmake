@@ -45,17 +45,20 @@ tint_add_target(tint_api_common lib
 )
 
 tint_target_add_dependencies(tint_api_common lib
+  tint_utils
   tint_utils_containers
   tint_utils_diagnostic
   tint_utils_ice
   tint_utils_macros
   tint_utils_math
   tint_utils_memory
-  tint_utils_reflection
   tint_utils_result
   tint_utils_rtti
   tint_utils_text
-  tint_utils_traits
+)
+
+tint_target_add_external_dependencies(tint_api_common lib
+  "src_utils"
 )
 
 ################################################################################
@@ -69,19 +72,19 @@ tint_add_target(tint_api_common_test test
 
 tint_target_add_dependencies(tint_api_common_test test
   tint_api_common
+  tint_utils
   tint_utils_containers
   tint_utils_diagnostic
   tint_utils_ice
   tint_utils_macros
   tint_utils_math
   tint_utils_memory
-  tint_utils_reflection
   tint_utils_result
   tint_utils_rtti
   tint_utils_text
-  tint_utils_traits
 )
 
 tint_target_add_external_dependencies(tint_api_common_test test
   "gtest"
+  "src_utils"
 )

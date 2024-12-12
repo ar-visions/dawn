@@ -125,6 +125,9 @@ constexpr SkippedMessage kSkippedMessages[] = {
      "stencil aspect during store with stencilStoreOp VK_ATTACHMENT_STORE_OP_STORE. Access info "
      "(usage: SYNC_LATE_FRAGMENT_TESTS_DEPTH_STENCIL_ATTACHMENT_WRITE, prior_usage: "
      "SYNC_FRAGMENT_SHADER_SHADER_SAMPLED_READ, read_barriers: VkPipelineStageFlags2(0)"},
+    // http://crbug.com/360147114
+    {"SYNC-HAZARD-WRITE-AFTER-READ",
+     "Submitted access info (submitted_usage: SYNC_CLEAR_TRANSFER_WRITE, command: vkCmdFillBuffer"},
 
     // http://crbug.com/dawn/1916
     {"SYNC-HAZARD-WRITE-AFTER-WRITE",
@@ -170,6 +173,52 @@ constexpr SkippedMessage kSkippedMessages[] = {
      "vkAllocateMemory(): pAllocateInfo->pNext<VkMemoryDedicatedAllocateInfo>"},
     // crbug.com/324282958
     {"NVIDIA", "vkBindImageMemory: memoryTypeIndex"},
+
+    // https://crbug.com/381887313
+    {"VUID-VkPipelineLayoutCreateInfo-descriptorType-03022",
+     "exceeds device maxPerStageDescriptorUpdateAfterBindSamplers limit (0)"},
+    {"VUID-VkPipelineLayoutCreateInfo-descriptorType-03023",
+     "exceeds device maxPerStageDescriptorUpdateAfterBindUniformBuffers limit (0)"},
+    {"VUID-VkPipelineLayoutCreateInfo-descriptorType-03024",
+     "exceeds device maxPerStageDescriptorUpdateAfterBindStorageBuffers limit (0)"},
+    {"VUID-VkPipelineLayoutCreateInfo-descriptorType-03025",
+     "exceeds device maxPerStageDescriptorUpdateAfterBindSampledImages limit (0)"},
+    {"VUID-VkPipelineLayoutCreateInfo-descriptorType-03026",
+     "exceeds device maxPerStageDescriptorUpdateAfterBindStorageImages limit (0)"},
+    {"VUID-VkPipelineLayoutCreateInfo-descriptorType-03027",
+     "exceeds device maxPerStageDescriptorUpdateAfterBindInputAttachments limit (0)"},
+    {"VUID-VkPipelineLayoutCreateInfo-pSetLayouts-03036",
+     "exceeds device maxDescriptorSetUpdateAfterBindSamplers limit (0)"},
+    {"VUID-VkPipelineLayoutCreateInfo-pSetLayouts-03037",
+     "exceeds device maxDescriptorSetUpdateAfterBindUniformBuffers limit (0)"},
+    {"VUID-VkPipelineLayoutCreateInfo-pSetLayouts-03038",
+     "exceeds device maxDescriptorSetUpdateAfterBindUniformBuffersDynamic limit (0)"},
+    {"VUID-VkPipelineLayoutCreateInfo-pSetLayouts-03039",
+     "exceeds device maxDescriptorSetUpdateAfterBindStorageBuffers limit (0)"},
+    {"VUID-VkPipelineLayoutCreateInfo-pSetLayouts-03040",
+     "exceeds device maxDescriptorSetUpdateAfterBindStorageBuffersDynamic limit (0)"},
+    {"VUID-VkPipelineLayoutCreateInfo-pSetLayouts-03041",
+     "exceeds device maxDescriptorSetUpdateAfterBindSampledImages limit (0)"},
+    {"VUID-VkPipelineLayoutCreateInfo-pSetLayouts-03042",
+     "exceeds device maxDescriptorSetUpdateAfterBindStorageImages limit (0)"},
+    {"VUID-VkPipelineLayoutCreateInfo-pSetLayouts-03043",
+     "exceeds device maxDescriptorSetUpdateAfterBindInputAttachments limit (0)"},
+
+    // crbug.com/383121397
+    {"VUID-VkShaderModuleCreateInfo-pCode-08740",
+     "SPIR-V Capability GroupNonUniform was declared, but"},
+    {"VUID-VkShaderModuleCreateInfo-pCode-08740",
+     "SPIR-V Capability GroupNonUniformArithmetic was declared, but"},
+    {"VUID-VkShaderModuleCreateInfo-pCode-08740",
+     "SPIR-V Capability GroupNonUniformBallot was declared, but"},
+    {"VUID-VkShaderModuleCreateInfo-pCode-08740",
+     "SPIR-V Capability GroupNonUniformQuad was declared, but"},
+    {"VUID-VkShaderModuleCreateInfo-pCode-08740",
+     "SPIR-V Capability GroupNonUniformShuffle was declared, but"},
+    {"VUID-VkShaderModuleCreateInfo-pCode-08740",
+     "SPIR-V Capability GroupNonUniformShuffleRelative was declared, but"},
+    {"VUID-VkShaderModuleCreateInfo-pCode-08740",
+     "SPIR-V Capability GroupNonUniformVote was declared, but"},
 };
 
 namespace dawn::native::vulkan {

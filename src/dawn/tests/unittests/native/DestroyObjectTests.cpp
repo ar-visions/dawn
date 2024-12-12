@@ -51,7 +51,6 @@
 #include "mocks/RenderPipelineMock.h"
 #include "mocks/SamplerMock.h"
 #include "mocks/ShaderModuleMock.h"
-#include "mocks/SwapChainMock.h"
 #include "mocks/TextureMock.h"
 #include "partition_alloc/pointers/raw_ptr.h"
 
@@ -69,7 +68,7 @@ using ::testing::StrictMock;
 using ::testing::Test;
 
 using MockMapAsyncCallback =
-    StrictMock<MockCppCallback<void (*)(wgpu::MapAsyncStatus, const char*)>>;
+    StrictMock<MockCppCallback<void (*)(wgpu::MapAsyncStatus, wgpu::StringView)>>;
 
 static constexpr std::string_view kComputeShader = R"(
         @compute @workgroup_size(1) fn main() {}
@@ -103,7 +102,7 @@ class DestroyObjectTests : public DawnMockTest {
   public:
     DestroyObjectTests() : DawnMockTest() {
         // Skipping validation on descriptors as coverage for validation is already present.
-        mDeviceMock->ForceSetToggleForTesting(Toggle::SkipValidation, true);
+        mDeviceToggles.ForceSet(Toggle::SkipValidation, true);
     }
 };
 
@@ -385,7 +384,8 @@ TEST_F(DestroyObjectTests, ExternalTextureNativeExplicit) {
     desc.gamutConversionMatrix = placeholderConstantArray.data();
     desc.srcTransferFunctionParameters = placeholderConstantArray.data();
     desc.dstTransferFunctionParameters = placeholderConstantArray.data();
-    desc.visibleSize = {1, 1};
+    desc.cropSize = {1, 1};
+    desc.apparentSize = {1, 1};
     desc.plane0 = textureViewMock.Get();
 
     Ref<ExternalTextureMock> externalTextureMock = ExternalTextureMock::Create(mDeviceMock, &desc);
@@ -415,7 +415,8 @@ TEST_F(DestroyObjectTests, ExternalTextureApiExplicit) {
     desc.gamutConversionMatrix = placeholderConstantArray.data();
     desc.srcTransferFunctionParameters = placeholderConstantArray.data();
     desc.dstTransferFunctionParameters = placeholderConstantArray.data();
-    desc.visibleSize = {1, 1};
+    desc.cropSize = {1, 1};
+    desc.apparentSize = {1, 1};
     desc.plane0 = textureViewMock.Get();
 
     Ref<ExternalTextureMock> externalTextureMock = ExternalTextureMock::Create(mDeviceMock, &desc);
@@ -449,7 +450,8 @@ TEST_F(DestroyObjectTests, ExternalTextureImplicit) {
     desc.gamutConversionMatrix = placeholderConstantArray.data();
     desc.srcTransferFunctionParameters = placeholderConstantArray.data();
     desc.dstTransferFunctionParameters = placeholderConstantArray.data();
-    desc.visibleSize = {1, 1};
+    desc.cropSize = {1, 1};
+    desc.apparentSize = {1, 1};
     desc.plane0 = textureViewMock.Get();
 
     Ref<ExternalTextureMock> externalTextureMock = ExternalTextureMock::Create(mDeviceMock, &desc);
@@ -631,7 +633,7 @@ TEST_F(DestroyObjectTests, ShaderModuleNativeExplicit) {
 }
 
 TEST_F(DestroyObjectTests, ShaderModuleImplicit) {
-    ShaderModuleWGSLDescriptor wgslDesc = {};
+    ShaderSourceWGSL wgslDesc = {};
     wgslDesc.code = kVertexShader.data();
     ShaderModuleDescriptor desc = {};
     desc.nextInChain = &wgslDesc;
@@ -829,7 +831,7 @@ TEST_F(DestroyObjectTests, DestroyObjectsApiExplicit) {
     Ref<ShaderModuleMock> csModuleMock;
     wgpu::ShaderModule csModule;
     {
-        ShaderModuleWGSLDescriptor wgslDesc = {};
+        ShaderSourceWGSL wgslDesc = {};
         wgslDesc.code = kComputeShader.data();
         ShaderModuleDescriptor desc = {};
         desc.nextInChain = &wgslDesc;
@@ -843,7 +845,7 @@ TEST_F(DestroyObjectTests, DestroyObjectsApiExplicit) {
     Ref<ShaderModuleMock> vsModuleMock;
     wgpu::ShaderModule vsModule;
     {
-        ShaderModuleWGSLDescriptor wgslDesc = {};
+        ShaderSourceWGSL wgslDesc = {};
         wgslDesc.code = kVertexShader.data();
         ShaderModuleDescriptor desc = {};
         desc.nextInChain = &wgslDesc;
@@ -986,7 +988,8 @@ TEST_F(DestroyObjectTests, DestroyObjectsApiExplicit) {
         desc.gamutConversionMatrix = placeholderConstantArray.data();
         desc.srcTransferFunctionParameters = placeholderConstantArray.data();
         desc.dstTransferFunctionParameters = placeholderConstantArray.data();
-        desc.visibleSize = {1, 1};
+        desc.cropSize = {1, 1};
+        desc.apparentSize = {1, 1};
         desc.plane0 = textureViewMock.Get();
 
         ScopedRawPtrExpectation scoped(mDeviceMock);
@@ -1027,7 +1030,12 @@ TEST_F(DestroyObjectTests, DestroyObjectsApiExplicit) {
     EXPECT_TRUE(FromAPI(csModule.Get())->IsAlive());
     EXPECT_TRUE(FromAPI(texture.Get())->IsAlive());
     EXPECT_TRUE(FromAPI(textureView.Get())->IsAlive());
+
+    EXPECT_CALL(mDeviceLostCallback,
+                Call(CHandleIs(device.Get()), wgpu::DeviceLostReason::Destroyed, _))
+        .Times(1);
     device.Destroy();
+
     EXPECT_FALSE(FromAPI(bindGroup.Get())->IsAlive());
     EXPECT_FALSE(FromAPI(bindGroupLayout.Get())->IsAlive());
     EXPECT_FALSE(FromAPI(buffer.Get())->IsAlive());

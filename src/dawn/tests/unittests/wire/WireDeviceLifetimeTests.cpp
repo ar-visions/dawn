@@ -53,12 +53,11 @@ class WireDeviceLifetimeTests : public testing::Test {
         options.backendType = wgpu::BackendType::Null;
 
         instance.RequestAdapter(
-            &options,
-            [](WGPURequestAdapterStatus status, WGPUAdapter cAdapter, const char*, void* userdata) {
-                ASSERT_EQ(status, WGPURequestAdapterStatus_Success);
-                *static_cast<wgpu::Adapter*>(userdata) = wgpu::Adapter::Acquire(cAdapter);
-            },
-            &adapter);
+            &options, wgpu::CallbackMode::AllowSpontaneous,
+            [this](wgpu::RequestAdapterStatus status, wgpu::Adapter a, wgpu::StringView) {
+                ASSERT_EQ(status, wgpu::RequestAdapterStatus::Success);
+                adapter = std::move(a);
+            });
         ASSERT_TRUE(wireHelper->FlushClient());
         ASSERT_TRUE(wireHelper->FlushServer());
         ASSERT_NE(adapter, nullptr);
@@ -81,7 +80,7 @@ class WireDeviceLifetimeTests : public testing::Test {
             using WrappedUserdata = std::pair<WGPURequestDeviceCallback, void*>;
             native::GetProcs().adapterRequestDevice(
                 self, desc,
-                [](WGPURequestDeviceStatus status, WGPUDevice device, char const* message,
+                [](WGPURequestDeviceStatus status, WGPUDevice device, WGPUStringView message,
                    void* userdata) {
                     lastBackendDevice = device;
                     auto* wrappedUserdata = static_cast<WrappedUserdata*>(userdata);
@@ -102,7 +101,7 @@ TEST_F(WireDeviceLifetimeTests, DeviceDroppedFromWireThenUncapturedErrorCallback
     wgpu::DeviceDescriptor deviceDesc = {};
     adapter.RequestDevice(
         &deviceDesc,
-        [](WGPURequestDeviceStatus, WGPUDevice cDevice, const char*, void* userdata) {
+        [](WGPURequestDeviceStatus, WGPUDevice cDevice, WGPUStringView, void* userdata) {
             *static_cast<wgpu::Device*>(userdata) = wgpu::Device::Acquire(cDevice);
         },
         &device);
@@ -125,7 +124,7 @@ TEST_F(WireDeviceLifetimeTests, DeviceDroppedFromWireThenUncapturedErrorCallback
     // Request a new device. This overrides the wire's device-related data.
     adapter.RequestDevice(
         &deviceDesc,
-        [](WGPURequestDeviceStatus, WGPUDevice cDevice, const char*, void* userdata) {
+        [](WGPURequestDeviceStatus, WGPUDevice cDevice, WGPUStringView, void* userdata) {
             *static_cast<wgpu::Device*>(userdata) = wgpu::Device::Acquire(cDevice);
         },
         &device);
@@ -145,7 +144,7 @@ TEST_F(WireDeviceLifetimeTests, DeviceDroppedFromWireThenLoggingCallback) {
     wgpu::DeviceDescriptor deviceDesc = {};
     adapter.RequestDevice(
         &deviceDesc,
-        [](WGPURequestDeviceStatus, WGPUDevice cDevice, const char*, void* userdata) {
+        [](WGPURequestDeviceStatus, WGPUDevice cDevice, WGPUStringView, void* userdata) {
             *static_cast<wgpu::Device*>(userdata) = wgpu::Device::Acquire(cDevice);
         },
         &device);
@@ -154,7 +153,7 @@ TEST_F(WireDeviceLifetimeTests, DeviceDroppedFromWireThenLoggingCallback) {
     ASSERT_NE(device, nullptr);
 
     wgpu::ShaderModuleDescriptor shaderModuleDesc = {};
-    wgpu::ShaderModuleWGSLDescriptor wgslDesc = {};
+    wgpu::ShaderSourceWGSL wgslDesc = {};
     shaderModuleDesc.nextInChain = &wgslDesc;
     wgslDesc.code = "@compute @workgroup_size(64) fn main() {}";
 
@@ -173,7 +172,7 @@ TEST_F(WireDeviceLifetimeTests, DeviceDroppedFromWireThenLoggingCallback) {
     // Request a new device. This overrides the wire's device-related data.
     adapter.RequestDevice(
         &deviceDesc,
-        [](WGPURequestDeviceStatus, WGPUDevice cDevice, const char*, void* userdata) {
+        [](WGPURequestDeviceStatus, WGPUDevice cDevice, WGPUStringView, void* userdata) {
             *static_cast<wgpu::Device*>(userdata) = wgpu::Device::Acquire(cDevice);
         },
         &device);
@@ -193,7 +192,7 @@ TEST_F(WireDeviceLifetimeTests, DeviceDroppedFromWireThenLostCallback) {
     wgpu::DeviceDescriptor deviceDesc = {};
     adapter.RequestDevice(
         &deviceDesc,
-        [](WGPURequestDeviceStatus, WGPUDevice cDevice, const char*, void* userdata) {
+        [](WGPURequestDeviceStatus, WGPUDevice cDevice, WGPUStringView, void* userdata) {
             *static_cast<wgpu::Device*>(userdata) = wgpu::Device::Acquire(cDevice);
         },
         &device);
@@ -213,7 +212,7 @@ TEST_F(WireDeviceLifetimeTests, DeviceDroppedFromWireThenLostCallback) {
     // Request a new device. This overrides the wire's device-related data.
     adapter.RequestDevice(
         &deviceDesc,
-        [](WGPURequestDeviceStatus, WGPUDevice cDevice, const char*, void* userdata) {
+        [](WGPURequestDeviceStatus, WGPUDevice cDevice, WGPUStringView, void* userdata) {
             *static_cast<wgpu::Device*>(userdata) = wgpu::Device::Acquire(cDevice);
         },
         &device);

@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 struct main_out {
   float4 x_GLF_color_1;
@@ -14,11 +14,11 @@ cbuffer cbuffer_x_6 : register(b0) {
   uint4 x_6[1];
 };
 void main_1() {
-  int GLF_dead6index = 0;
-  int GLF_dead6currentNode = 0;
+  int GLF_dead6index = int(0);
+  int GLF_dead6currentNode = int(0);
   int donor_replacementGLF_dead6tree[1] = (int[1])0;
   x_GLF_color = float4(1.0f, 0.0f, 0.0f, 1.0f);
-  GLF_dead6index = 0;
+  GLF_dead6index = int(0);
   float x_34 = asfloat(x_6[0u].y);
   if ((x_34 < 0.0f)) {
     {
@@ -58,3 +58,5 @@ hlsl.hlsl:47: error: Loop must have break.
 Validation failed.
 
 
+
+tint executable returned error: exit status 1

@@ -1,3 +1,45 @@
+//
+// fragment_main
+//
+
+RWByteAddressBuffer prevent_dce : register(u0);
+Texture2DArray<float4> arg_0 : register(t0, space1);
+uint2 textureDimensions_2fd2a4() {
+  uint4 v = (0u).xxxx;
+  arg_0.GetDimensions(0u, v.x, v.y, v.z, v.w);
+  uint4 v_1 = (0u).xxxx;
+  arg_0.GetDimensions(uint(min(uint(int(1)), (v.w - 1u))), v_1.x, v_1.y, v_1.z, v_1.w);
+  uint2 res = v_1.xy;
+  return res;
+}
+
+void fragment_main() {
+  prevent_dce.Store2(0u, textureDimensions_2fd2a4());
+}
+
+//
+// compute_main
+//
+
+RWByteAddressBuffer prevent_dce : register(u0);
+Texture2DArray<float4> arg_0 : register(t0, space1);
+uint2 textureDimensions_2fd2a4() {
+  uint4 v = (0u).xxxx;
+  arg_0.GetDimensions(0u, v.x, v.y, v.z, v.w);
+  uint4 v_1 = (0u).xxxx;
+  arg_0.GetDimensions(uint(min(uint(int(1)), (v.w - 1u))), v_1.x, v_1.y, v_1.z, v_1.w);
+  uint2 res = v_1.xy;
+  return res;
+}
+
+[numthreads(1, 1, 1)]
+void compute_main() {
+  prevent_dce.Store2(0u, textureDimensions_2fd2a4());
+}
+
+//
+// vertex_main
+//
 struct VertexOutput {
   float4 pos;
   uint2 prevent_dce;
@@ -9,23 +51,14 @@ struct vertex_main_outputs {
 };
 
 
-RWByteAddressBuffer prevent_dce : register(u0);
 Texture2DArray<float4> arg_0 : register(t0, space1);
 uint2 textureDimensions_2fd2a4() {
-  Texture2DArray<float4> v = arg_0;
+  uint4 v = (0u).xxxx;
+  arg_0.GetDimensions(0u, v.x, v.y, v.z, v.w);
   uint4 v_1 = (0u).xxxx;
-  v.GetDimensions(uint(1), v_1[0u], v_1[1u], v_1[2u], v_1[3u]);
+  arg_0.GetDimensions(uint(min(uint(int(1)), (v.w - 1u))), v_1.x, v_1.y, v_1.z, v_1.w);
   uint2 res = v_1.xy;
   return res;
-}
-
-void fragment_main() {
-  prevent_dce.Store2(0u, textureDimensions_2fd2a4());
-}
-
-[numthreads(1, 1, 1)]
-void compute_main() {
-  prevent_dce.Store2(0u, textureDimensions_2fd2a4());
 }
 
 VertexOutput vertex_main_inner() {
@@ -38,9 +71,7 @@ VertexOutput vertex_main_inner() {
 
 vertex_main_outputs vertex_main() {
   VertexOutput v_3 = vertex_main_inner();
-  VertexOutput v_4 = v_3;
-  VertexOutput v_5 = v_3;
-  vertex_main_outputs v_6 = {v_5.prevent_dce, v_4.pos};
-  return v_6;
+  vertex_main_outputs v_4 = {v_3.prevent_dce, v_3.pos};
+  return v_4;
 }
 

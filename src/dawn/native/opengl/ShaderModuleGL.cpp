@@ -119,7 +119,7 @@ namespace {
 // Any texture-only references will have "usePlaceholderSampler" set to true, and only the texture
 // binding point will be used in naming them. In addition, Dawn will bind a non-filtering sampler
 // for them (see PipelineGL).
-CombinedSamplerInfo generateCombinedSamplerInfo(tint::inspector::Inspector& inspector,
+CombinedSamplerInfo GenerateCombinedSamplerInfo(tint::inspector::Inspector& inspector,
                                                 const std::string& entryPoint,
                                                 tint::glsl::writer::Bindings& bindings,
                                                 BindingMap externalTextureExpansionMap,
@@ -199,7 +199,7 @@ CombinedSamplerInfo generateCombinedSamplerInfo(tint::inspector::Inspector& insp
     return combinedSamplerInfo;
 }
 
-bool generateTextureBuiltinFromUniformData(tint::inspector::Inspector& inspector,
+bool GenerateTextureBuiltinFromUniformData(tint::inspector::Inspector& inspector,
                                            const std::string& entryPoint,
                                            const PipelineLayout* layout,
                                            BindingPointToFunctionAndOffset* bindingPointToData,
@@ -301,7 +301,7 @@ MaybeError ShaderModule::Initialize(ShaderModuleParseResult* parseResult,
     return {};
 }
 
-std::pair<tint::glsl::writer::Bindings, BindingMap> generateBindingInfo(
+std::pair<tint::glsl::writer::Bindings, BindingMap> GenerateBindingInfo(
     SingleShaderStage stage,
     const PipelineLayout* layout,
     const BindingInfoArray& moduleBindingInfo,
@@ -348,7 +348,7 @@ std::pair<tint::glsl::writer::Bindings, BindingMap> generateBindingInfo(
                             srcBindingPoint,
                             tint::glsl::writer::binding::Storage{dstBindingPoint.binding});
                         break;
-                    case wgpu::BufferBindingType::Undefined:
+                    case wgpu::BufferBindingType::BindingNotUsed:
                         DAWN_UNREACHABLE();
                         break;
                 }
@@ -399,6 +399,7 @@ ResultOrError<GLuint> ShaderModule::CompileShader(
     bool usesVertexIndex,
     bool usesInstanceIndex,
     bool usesFragDepth,
+    VertexAttributeMask bgraSwizzleAttributes,
     CombinedSamplerInfo* combinedSamplers,
     const PipelineLayout* layout,
     bool* needsPlaceholderSampler,
@@ -423,7 +424,7 @@ ResultOrError<GLuint> ShaderModule::CompileShader(
     const BindingInfoArray& moduleBindingInfo = entryPointMetaData.bindings;
 
     auto [bindings, externalTextureExpansionMap] =
-        generateBindingInfo(stage, layout, moduleBindingInfo, req);
+        GenerateBindingInfo(stage, layout, moduleBindingInfo, req);
 
     // When textures are accessed without a sampler (e.g., textureLoad()),
     // GetSamplerTextureUses() will return this sentinel value.
@@ -438,12 +439,11 @@ ResultOrError<GLuint> ShaderModule::CompileShader(
         bindings.texture_builtins_from_uniform.ubo_binding,
         tint::glsl::writer::binding::Uniform{layout->GetInternalUniformBinding()});
 
-    *needsPlaceholderSampler = false;
     CombinedSamplerInfo combinedSamplerInfo =
-        generateCombinedSamplerInfo(inspector, programmableStage.entryPoint, bindings,
+        GenerateCombinedSamplerInfo(inspector, programmableStage.entryPoint, bindings,
                                     externalTextureExpansionMap, needsPlaceholderSampler);
 
-    bool needsInternalUBO = generateTextureBuiltinFromUniformData(
+    bool needsInternalUBO = GenerateTextureBuiltinFromUniformData(
         inspector, programmableStage.entryPoint, layout, bindingPointToData, bindings);
 
     std::optional<tint::ast::transform::SubstituteOverride::Config> substituteOverrideConfig;
@@ -478,6 +478,12 @@ ResultOrError<GLuint> ShaderModule::CompileShader(
                                                4 * PipelineLayout::PushConstantLocation::MaxDepth};
     }
 
+    if (stage == SingleShaderStage::Vertex) {
+        for (VertexAttributeLocation i : IterateBitSet(bgraSwizzleAttributes)) {
+            req.tintOptions.bgra_swizzle_locations.insert(static_cast<uint8_t>(i));
+        }
+    }
+
     req.disableSymbolRenaming = GetDevice()->IsToggleEnabled(Toggle::DisableSymbolRenaming);
 
     req.interstageVariables = {};
@@ -496,6 +502,7 @@ ResultOrError<GLuint> ShaderModule::CompileShader(
     DAWN_TRY_LOAD_OR_RUN(
         compilationResult, GetDevice(), std::move(req), GLSLCompilation::FromBlob,
         [](GLSLCompilationRequest r) -> ResultOrError<GLSLCompilation> {
+            constexpr char kRemappedEntryPointName[] = "dawn_entry_point";
             tint::ast::transform::Manager transformManager;
             tint::ast::transform::DataMap transformInputs;
 
@@ -503,7 +510,8 @@ ResultOrError<GLuint> ShaderModule::CompileShader(
             transformInputs.Add<tint::ast::transform::SingleEntryPoint::Config>(r.entryPointName);
 
             {
-                tint::ast::transform::Renamer::Remappings assignedRenamings = {};
+                tint::ast::transform::Renamer::Remappings assignedRenamings = {
+                    {r.entryPointName, kRemappedEntryPointName}};
 
                 // Give explicit renaming mappings for interstage variables
                 // Because GLSL requires interstage IO names to match.
@@ -513,8 +521,7 @@ ResultOrError<GLuint> ShaderModule::CompileShader(
                 }
 
                 // Prepend v_ or f_ to buffer binding variable names in order to avoid collisions in
-                // renamed interface blocks. The AddBlockAttribute transform in the Tint GLSL
-                // printer will always generate wrapper structs from such bindings.
+                // renamed interface blocks.
                 for (const auto& variableName : r.bufferBindingVariables) {
                     assignedRenamings.emplace(
                         variableName,
@@ -527,7 +534,7 @@ ResultOrError<GLuint> ShaderModule::CompileShader(
                 transformInputs.Add<tint::ast::transform::Renamer::Config>(
                     r.disableSymbolRenaming ? tint::ast::transform::Renamer::Target::kGlslKeywords
                                             : tint::ast::transform::Renamer::Target::kAll,
-                    false, std::move(assignedRenamings));
+                    std::move(assignedRenamings));
             }
 
             if (r.substituteOverrideConfig) {
@@ -543,32 +550,26 @@ ResultOrError<GLuint> ShaderModule::CompileShader(
             DAWN_TRY_ASSIGN(program, RunTransforms(&transformManager, r.inputProgram,
                                                    transformInputs, &transformOutputs, nullptr));
 
-            // TODO(dawn:2180): refactor out.
-            // Get the entry point name after the renamer pass.
-            // In the case of the entry-point name being a reserved GLSL keyword
-            // (including `main`) the entry-point would have been renamed
-            // regardless of the `disableSymbolRenaming` flag. Always check the
-            // rename map, and if the name was changed, get the new one.
-            auto* data = transformOutputs.Get<tint::ast::transform::Renamer::Data>();
-            DAWN_ASSERT(data != nullptr);
-            auto it = data->remappings.find(r.entryPointName.data());
-            std::string remappedEntryPoint;
-            if (it != data->remappings.end()) {
-                remappedEntryPoint = it->second;
-            } else {
-                remappedEntryPoint = r.entryPointName;
-            }
-            DAWN_ASSERT(remappedEntryPoint != "");
-
             if (r.stage == SingleShaderStage::Compute) {
                 // Validate workgroup size after program runs transforms.
                 Extent3D _;
                 DAWN_TRY_ASSIGN(_, ValidateComputeStageWorkgroupSize(
-                                       program, remappedEntryPoint.c_str(), r.limits,
-                                       /* fullSubgroups */ {}));
+                                       program, kRemappedEntryPointName, r.limits));
             }
 
-            auto result = tint::glsl::writer::Generate(program, r.tintOptions, remappedEntryPoint);
+            // Intentionally assign entry point to empty to avoid a redundant 'SingleEntryPoint'
+            // transform in Tint.
+            // TODO(crbug.com/356424898): In the long run, we want to move SingleEntryPoint to Tint,
+            // but that has interactions with SubstituteOverrides which need to be handled first.
+            const std::string remappedEntryPoint = "";
+
+            // Convert the AST program to an IR module.
+            auto ir = tint::wgsl::reader::ProgramToLoweredIR(program);
+            DAWN_INVALID_IF(ir != tint::Success, "An error occurred while generating Tint IR\n%s",
+                            ir.Failure().reason.Str());
+
+            // Generate GLSL from Tint IR.
+            auto result = tint::glsl::writer::Generate(ir.Get(), r.tintOptions, remappedEntryPoint);
             DAWN_INVALID_IF(result != tint::Success, "An error occurred while generating GLSL:\n%s",
                             result.Failure().reason.Str());
 

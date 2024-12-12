@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 struct main_out {
   float4 x_GLF_color_1;
@@ -78,5 +78,7 @@ main_outputs main(main_inputs inputs) {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x0000014B40FABA00(25,11-14): error X3696: infinite loop detected - loop never exits
+<scrubbed_path>(25,11-14): error X3696: infinite loop detected - loop never exits
 
+
+tint executable returned error: exit status 1

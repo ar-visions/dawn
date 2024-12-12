@@ -84,6 +84,7 @@
 #include "src/tint/lang/wgsl/ast/phony_expression.h"
 #include "src/tint/lang/wgsl/ast/requires.h"
 #include "src/tint/lang/wgsl/ast/return_statement.h"
+#include "src/tint/lang/wgsl/ast/row_major_attribute.h"
 #include "src/tint/lang/wgsl/ast/stage_attribute.h"
 #include "src/tint/lang/wgsl/ast/stride_attribute.h"
 #include "src/tint/lang/wgsl/ast/struct.h"
@@ -100,7 +101,7 @@
 #include "src/tint/lang/wgsl/ast/workgroup_attribute.h"
 #include "src/tint/lang/wgsl/builtin_fn.h"
 #include "src/tint/lang/wgsl/extension.h"
-#include "src/tint/utils/id/generation_id.h"
+#include "src/tint/utils/generation_id.h"
 #include "src/tint/utils/memory/block_allocator.h"
 #include "src/tint/utils/symbol/symbol_table.h"
 #include "src/tint/utils/text/string.h"
@@ -658,7 +659,7 @@ class Builder {
         /// @param rows number of rows for the matrix
         /// @return a matrix of @p type
         ast::Type mat(const Source& source, ast::Type type, uint32_t columns, uint32_t rows) const {
-            if (TINT_LIKELY(columns >= 2 && columns <= 4 && rows >= 2 && rows <= 4)) {
+            if (DAWN_LIKELY(columns >= 2 && columns <= 4 && rows >= 2 && rows <= 4)) {
                 static constexpr const char* names[] = {
                     "mat2x2", "mat2x3", "mat2x4",  //
                     "mat3x2", "mat3x3", "mat3x4",  //
@@ -3330,6 +3331,17 @@ class Builder {
                                                Expr(std::forward<EXPR_Y>(y)),
                                                Expr(std::forward<EXPR_Z>(z)));
     }
+
+    /// Creates an ast::RowMajorAttribute
+    /// @param source the source information
+    /// @returns the row-major attribute pointer
+    const ast::RowMajorAttribute* RowMajor(const Source& source) {
+        return create<ast::RowMajorAttribute>(source);
+    }
+
+    /// Creates an ast::RowMajorAttribute
+    /// @returns the row-major attribute pointer
+    const ast::RowMajorAttribute* RowMajor() { return create<ast::RowMajorAttribute>(source_); }
 
     /// Creates an ast::DisableValidationAttribute
     /// @param validation the validation to disable

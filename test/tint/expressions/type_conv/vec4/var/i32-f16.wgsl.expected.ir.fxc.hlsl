@@ -1,7 +1,7 @@
-SKIP: FAILED
+SKIP: INVALID
 
 
-static int4 u = (1).xxxx;
+static int4 u = (int(1)).xxxx;
 void f() {
   vector<float16_t, 4> v = vector<float16_t, 4>(u);
 }
@@ -11,5 +11,7 @@ void unused_entry_point() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x0000018924B416F0(4,10-18): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(4,10-18): error X3000: syntax error: unexpected token 'float16_t'
 
+
+tint executable returned error: exit status 1

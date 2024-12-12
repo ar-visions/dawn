@@ -50,7 +50,7 @@ class AdapterBase : public RefCounted, public WeakRefSupport<AdapterBase> {
   public:
     AdapterBase(InstanceBase* instance,
                 Ref<PhysicalDeviceBase> physicalDevice,
-                FeatureLevel featureLevel,
+                wgpu::FeatureLevel featureLevel,
                 const TogglesState& requiredAdapterToggles,
                 wgpu::PowerPreference powerPreference);
     ~AdapterBase() override;
@@ -62,9 +62,9 @@ class AdapterBase : public RefCounted, public WeakRefSupport<AdapterBase> {
     InstanceBase* APIGetInstance() const;
     wgpu::Status APIGetLimits(SupportedLimits* limits) const;
     wgpu::Status APIGetInfo(AdapterInfo* info) const;
-    wgpu::Status APIGetProperties(AdapterProperties* properties) const;
     bool APIHasFeature(wgpu::FeatureName feature) const;
-    size_t APIEnumerateFeatures(wgpu::FeatureName* features) const;
+    void APIGetFeatures(SupportedFeatures* features) const;
+    void APIGetFeatures(wgpu::SupportedFeatures* features) const;
     void APIRequestDevice(const DeviceDescriptor* descriptor,
                           WGPURequestDeviceCallback callback,
                           void* userdata);
@@ -78,8 +78,6 @@ class AdapterBase : public RefCounted, public WeakRefSupport<AdapterBase> {
 
     void SetUseTieredLimits(bool useTieredLimits);
 
-    FeaturesSet GetSupportedFeatures() const;
-
     // Return the underlying PhysicalDevice.
     PhysicalDeviceBase* GetPhysicalDevice();
     const PhysicalDeviceBase* GetPhysicalDevice() const;
@@ -87,14 +85,12 @@ class AdapterBase : public RefCounted, public WeakRefSupport<AdapterBase> {
     // Get the actual toggles state of the adapter.
     const TogglesState& GetTogglesState() const;
 
-    FeatureLevel GetFeatureLevel() const;
+    wgpu::FeatureLevel GetFeatureLevel() const;
 
     // Get a human readable label for the adapter (in practice, the physical device name)
     const std::string& GetName() const;
 
   private:
-    wgpu::Status GetPropertiesInternal(AdapterProperties* properties) const;
-
     std::pair<Ref<DeviceBase::DeviceLostEvent>, ResultOrError<Ref<DeviceBase>>> CreateDevice(
         const DeviceDescriptor* rawDescriptor);
     ResultOrError<Ref<DeviceBase>> CreateDeviceInternal(const DeviceDescriptor* rawDescriptor,
@@ -102,7 +98,7 @@ class AdapterBase : public RefCounted, public WeakRefSupport<AdapterBase> {
 
     Ref<InstanceBase> mInstance;
     Ref<PhysicalDeviceBase> mPhysicalDevice;
-    FeatureLevel mFeatureLevel;
+    wgpu::FeatureLevel mFeatureLevel;
     bool mUseTieredLimits = false;
 
     // Supported features under adapter toggles.

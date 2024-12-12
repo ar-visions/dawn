@@ -29,7 +29,6 @@
 #include <iostream>
 #include <memory>
 #include <string>
-#include "src/tint/lang/wgsl/sem/variable.h"
 
 #include "src/tint/api/tint.h"
 #include "src/tint/cmd/common/helper.h"
@@ -39,9 +38,8 @@
 #include "src/tint/lang/core/ir/validator.h"
 #include "src/tint/lang/wgsl/ast/module.h"
 #include "src/tint/lang/wgsl/helpers/apply_substitute_overrides.h"
-#include "src/tint/lang/wgsl/helpers/flatten_bindings.h"
 #include "src/tint/lang/wgsl/reader/reader.h"
-#include "src/tint/utils/cli/cli.h"
+#include "src/tint/utils/command/cli.h"
 #include "src/tint/utils/containers/transform.h"
 #include "src/tint/utils/macros/defer.h"
 #include "src/tint/utils/text/color_mode.h"
@@ -201,7 +199,11 @@ tint::Result<tint::cmd::fuzz::ir::pb::Root> GenerateFuzzCaseProto(const tint::Pr
     tint::cmd::fuzz::ir::pb::Root fuzz_pb;
     {
         auto ir_pb = tint::core::ir::binary::EncodeToProto(module.Get());
-        fuzz_pb.set_allocated_module(ir_pb.release());
+        if (ir_pb != tint::Success) {
+            std::cerr << " Failed to encode IR to proto: " << ir_pb.Failure() << "\n";
+            return tint::Failure();
+        }
+        fuzz_pb.set_allocated_module(ir_pb.Get().release());
     }
 
     return std::move(fuzz_pb);

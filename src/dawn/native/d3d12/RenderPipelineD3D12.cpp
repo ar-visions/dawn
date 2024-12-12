@@ -33,7 +33,6 @@
 #include <utility>
 
 #include "dawn/common/Assert.h"
-#include "dawn/common/Log.h"
 #include "dawn/native/CreatePipelineAsyncEvent.h"
 #include "dawn/native/Instance.h"
 #include "dawn/native/d3d/BlobD3D.h"
@@ -405,11 +404,15 @@ MaybeError RenderPipeline::InitializeImpl() {
     }
 
     static_assert(kMaxColorAttachments == 8);
+    auto highestColorAttachmentIndexPlusOne = GetHighestBitIndexPlusOne(GetColorAttachmentsMask());
     for (uint8_t i = 0; i < kMaxColorAttachments; i++) {
-        descriptorD3D12.RTVFormats[i] = DXGI_FORMAT_UNKNOWN;
+        if (i < static_cast<uint8_t>(highestColorAttachmentIndexPlusOne)) {
+            descriptorD3D12.RTVFormats[i] = GetNullRTVDXGIFormatForD3D12RenderPass();
+        } else {
+            descriptorD3D12.RTVFormats[i] = DXGI_FORMAT_UNKNOWN;
+        }
         descriptorD3D12.BlendState.RenderTarget[i].LogicOp = D3D12_LOGIC_OP_NOOP;
     }
-    auto highestColorAttachmentIndexPlusOne = GetHighestBitIndexPlusOne(GetColorAttachmentsMask());
     for (auto i : IterateBitSet(GetColorAttachmentsMask())) {
         descriptorD3D12.RTVFormats[static_cast<uint8_t>(i)] =
             d3d::DXGITextureFormat(device, GetColorAttachmentFormat(i));
@@ -555,11 +558,12 @@ D3D12_DEPTH_STENCIL_DESC RenderPipeline::ComputeDepthStencilDesc() {
     D3D12_DEPTH_STENCIL_DESC depthStencilDescriptor = {};
     depthStencilDescriptor.DepthEnable =
         (descriptor->depthCompare == wgpu::CompareFunction::Always &&
-         !descriptor->depthWriteEnabled)
+         descriptor->depthWriteEnabled != wgpu::OptionalBool::True)
             ? FALSE
             : TRUE;
     depthStencilDescriptor.DepthWriteMask =
-        descriptor->depthWriteEnabled ? D3D12_DEPTH_WRITE_MASK_ALL : D3D12_DEPTH_WRITE_MASK_ZERO;
+        descriptor->depthWriteEnabled == wgpu::OptionalBool::True ? D3D12_DEPTH_WRITE_MASK_ALL
+                                                                  : D3D12_DEPTH_WRITE_MASK_ZERO;
     depthStencilDescriptor.DepthFunc = ToD3D12ComparisonFunc(descriptor->depthCompare);
 
     depthStencilDescriptor.StencilEnable = UsesStencil() ? TRUE : FALSE;

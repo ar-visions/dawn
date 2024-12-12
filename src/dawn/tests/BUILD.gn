@@ -47,6 +47,7 @@ group("tests") {
     ":dawn_perf_tests",
     ":dawn_unittests",
     "${dawn_root}/src/dawn/tests/benchmarks:dawn_benchmarks",
+    "${dawn_root}/src/utils",
   ]
 }
 
@@ -235,6 +236,7 @@ source_set("native_mocks_sources") {
 
   deps = [
     ":gmock_and_gtest",
+    ":test_infra_sources",
     "${dawn_root}/src/dawn:proc",
     "${dawn_root}/src/dawn/native:sources",
     "${dawn_root}/src/dawn/native:static",
@@ -273,8 +275,6 @@ source_set("native_mocks_sources") {
     "unittests/native/mocks/SamplerMock.h",
     "unittests/native/mocks/ShaderModuleMock.cpp",
     "unittests/native/mocks/ShaderModuleMock.h",
-    "unittests/native/mocks/SwapChainMock.cpp",
-    "unittests/native/mocks/SwapChainMock.h",
     "unittests/native/mocks/TextureMock.cpp",
     "unittests/native/mocks/TextureMock.h",
   ]
@@ -287,6 +287,7 @@ dawn_test("dawn_unittests") {
     ":native_mocks_sources",
     ":partition_alloc_support",
     ":platform_mocks_sources",
+    ":test_infra_sources",
     "${dawn_root}/include/dawn:cpp_headers",
     "${dawn_root}/src/dawn:proc",
     "${dawn_root}/src/dawn/common",
@@ -315,10 +316,6 @@ dawn_test("dawn_unittests") {
     "${dawn_root}/src/dawn/wire/server/ServerMemoryTransferService_mock.h",
     "DawnNativeTest.cpp",
     "DawnNativeTest.h",
-    "MockCallback.h",
-    "ParamGenerator.h",
-    "ToggleParser.cpp",
-    "ToggleParser.h",
     "unittests/AsyncTaskTests.cpp",
     "unittests/BitSetIteratorTests.cpp",
     "unittests/BuddyAllocatorTests.cpp",
@@ -392,6 +389,7 @@ dawn_test("dawn_unittests") {
     "unittests/validation/ErrorScopeValidationTests.cpp",
     "unittests/validation/ExternalTextureTests.cpp",
     "unittests/validation/GetBindGroupLayoutValidationTests.cpp",
+    "unittests/validation/ImmediateDataTests.cpp",
     "unittests/validation/IndexBufferValidationTests.cpp",
     "unittests/validation/InternalUsageValidationTests.cpp",
     "unittests/validation/LabelTests.cpp",
@@ -441,7 +439,6 @@ dawn_test("dawn_unittests") {
     "unittests/wire/WireInjectBufferTests.cpp",
     "unittests/wire/WireInjectInstanceTests.cpp",
     "unittests/wire/WireInjectSurfaceTests.cpp",
-    "unittests/wire/WireInjectSwapChainTests.cpp",
     "unittests/wire/WireInjectTextureTests.cpp",
     "unittests/wire/WireInstanceTests.cpp",
     "unittests/wire/WireMemoryTransferServiceTests.cpp",
@@ -515,6 +512,14 @@ source_set("test_infra_sources") {
     "${dawn_root}/src/dawn/wire",
   ]
 
+  public = [
+    "AdapterTestConfig.h",
+    "DawnTest.h",
+    "MockCallback.h",
+    "ParamGenerator.h",
+    "StringViewMatchers.h",
+    "ToggleParser.h",
+  ]
   public_deps = [
     ":gmock_and_gtest",
     "${dawn_root}/src/dawn/partition_alloc:raw_ptr",
@@ -526,13 +531,8 @@ source_set("test_infra_sources") {
 
   sources = [
     "AdapterTestConfig.cpp",
-    "AdapterTestConfig.h",
     "DawnTest.cpp",
-    "DawnTest.h",
-    "MockCallback.h",
-    "ParamGenerator.h",
     "ToggleParser.cpp",
-    "ToggleParser.h",
   ]
 }
 
@@ -587,6 +587,7 @@ source_set("end2end_tests_sources") {
     "end2end/BufferHostMappedPointerTests.h",
     "end2end/BufferTests.cpp",
     "end2end/BufferZeroInitTests.cpp",
+    "end2end/ClipDistancesTests.cpp",
     "end2end/ClipSpaceTests.cpp",
     "end2end/ColorStateTests.cpp",
     "end2end/CommandEncoderTests.cpp",
@@ -612,6 +613,7 @@ source_set("end2end_tests_sources") {
     "end2end/DeviceInitializationTests.cpp",
     "end2end/DeviceLifetimeTests.cpp",
     "end2end/DeviceLostTests.cpp",
+    "end2end/DiscardBasicTests.cpp",
     "end2end/DrawIndexedIndirectTests.cpp",
     "end2end/DrawIndexedTests.cpp",
     "end2end/DrawIndirectTests.cpp",
@@ -627,9 +629,12 @@ source_set("end2end_tests_sources") {
     "end2end/GpuMemorySynchronizationTests.cpp",
     "end2end/HistogramTests.cpp",
     "end2end/IndexFormatTests.cpp",
+    "end2end/InfiniteLoopTests.cpp",
     "end2end/MaxLimitTests.cpp",
     "end2end/MemoryAllocationStressTests.cpp",
     "end2end/MemoryHeapPropertiesTests.cpp",
+    "end2end/MultiDrawIndexedIndirectTests.cpp",
+    "end2end/MultiDrawIndirectTests.cpp",
     "end2end/MultisampledRenderingTests.cpp",
     "end2end/MultisampledSamplingTests.cpp",
     "end2end/MultithreadTests.cpp",
@@ -654,6 +659,8 @@ source_set("end2end_tests_sources") {
     "end2end/SamplerFilterAnisotropicTests.cpp",
     "end2end/SamplerTests.cpp",
     "end2end/ScissorTests.cpp",
+    "end2end/ShaderAtomicTests.cpp",
+    "end2end/ShaderBuiltinPartialConstArgsErrorTests.cpp",
     "end2end/ShaderF16Tests.cpp",
     "end2end/ShaderTests.cpp",
     "end2end/ShaderValidationTests.cpp",
@@ -715,8 +722,6 @@ source_set("end2end_tests_sources") {
     sources += [
       "end2end/SurfaceConfigurationValidationTests.cpp",
       "end2end/SurfaceTests.cpp",
-      "end2end/SwapChainTests.cpp",
-      "end2end/SwapChainValidationTests.cpp",
       "end2end/WindowSurfaceTests.cpp",
     ]
   }

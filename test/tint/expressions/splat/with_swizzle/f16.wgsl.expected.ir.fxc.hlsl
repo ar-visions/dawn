@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 
 void f() {
@@ -12,6 +12,8 @@ void unused_entry_point() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x00000229610217A0(3,3-11): error X3000: unrecognized identifier 'float16_t'
-c:\src\dawn\Shader@0x00000229610217A0(3,13): error X3000: unrecognized identifier 'a'
+<scrubbed_path>(3,3-11): error X3000: unrecognized identifier 'float16_t'
+<scrubbed_path>(3,13): error X3000: unrecognized identifier 'a'
 
+
+tint executable returned error: exit status 1

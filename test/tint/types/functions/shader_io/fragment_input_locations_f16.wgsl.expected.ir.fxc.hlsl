@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 struct main_inputs {
   nointerpolation int loc0 : TEXCOORD0;
@@ -24,5 +24,7 @@ void main(main_inputs inputs) {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x0000024211311050(6,3-11): error X3000: unrecognized identifier 'float16_t'
+<scrubbed_path>(6,3-11): error X3000: unrecognized identifier 'float16_t'
 
+
+tint executable returned error: exit status 1

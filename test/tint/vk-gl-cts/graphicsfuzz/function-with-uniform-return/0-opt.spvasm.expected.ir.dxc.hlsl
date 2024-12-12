@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 struct main_out {
   float4 x_GLF_color_1;
@@ -83,3 +83,5 @@ hlsl.hlsl:72: error: Loop must have break.
 Validation failed.
 
 
+
+tint executable returned error: exit status 1

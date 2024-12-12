@@ -9,9 +9,8 @@ struct S {
 
 
 uint f() {
-  S v = (S)0;
-  S a = v;
-  return a.n[2].k[1];
+  S a = (S)0;
+  return a.n[2u].k[1u];
 }
 
 [numthreads(1, 1, 1)]

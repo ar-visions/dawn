@@ -120,8 +120,9 @@ TEST_P(MultithreadTests, Device_DroppedOnAnotherThread) {
     // NVIDIA.
     DAWN_SUPPRESS_TEST_IF(IsD3D12() && IsNvidia());
 
-    // TODO(crbug.com/dawn/1922): Flaky on Linux TSAN Release
-    DAWN_SUPPRESS_TEST_IF(IsLinux() && IsVulkan() && IsTsan());
+    // TODO(crbug.com/42240870): Flaky on Linux TSAN Release
+    // TODO(crbug.com/383339997): Failing on Linux/Vulkan.
+    DAWN_SUPPRESS_TEST_IF(IsLinux() && IsVulkan());
 
     std::vector<wgpu::Device> devices(5);
 
@@ -175,7 +176,8 @@ TEST_P(MultithreadTests, Device_DroppedInCallback_OnAnotherThread) {
         additionalDevice.PushErrorScope(wgpu::ErrorFilter::Validation);
         additionalDevice.PopErrorScope(
             wgpu::CallbackMode::AllowProcessEvents,
-            [&device2ndRef, &isCompleted](wgpu::PopErrorScopeStatus, wgpu::ErrorType, const char*) {
+            [&device2ndRef, &isCompleted](wgpu::PopErrorScopeStatus, wgpu::ErrorType,
+                                          wgpu::StringView) {
                 device2ndRef = nullptr;
                 isCompleted = true;
             });
@@ -188,6 +190,40 @@ TEST_P(MultithreadTests, Device_DroppedInCallback_OnAnotherThread) {
 
         EXPECT_EQ(device2ndRef, nullptr);
     });
+}
+
+// Test that waiting for a device lost after it's lost does not block.
+TEST_P(MultithreadTests, Device_WaitForDroppedAfterDropped) {
+    auto future = device.GetLostFuture();
+
+    LoseDeviceForTesting();
+    EXPECT_EQ(GetInstance().WaitAny(future, 0), wgpu::WaitStatus::Success);
+
+    EXPECT_EQ(future.id, device.GetLostFuture().id);
+}
+
+// Test that we can wait for a device lost on another thread.
+TEST_P(MultithreadTests, Device_WaitForDroppedInAnotherThread) {
+    // TODO(crbug.com/dawn/1779): This test seems to cause flakiness in other sampling tests on
+    // NVIDIA.
+    DAWN_SUPPRESS_TEST_IF(IsD3D12() && IsNvidia());
+
+    enum class Step {
+        Begin,
+        Waiting,
+    };
+
+    LockStep<Step> lockStep(Step::Begin);
+    std::thread waitThread([&] {
+        auto future = device.GetLostFuture();
+        EXPECT_EQ(GetInstance().WaitAny(future, 0), wgpu::WaitStatus::TimedOut);
+        lockStep.Signal(Step::Waiting);
+        EXPECT_EQ(GetInstance().WaitAny(future, UINT64_MAX), wgpu::WaitStatus::Success);
+    });
+
+    lockStep.Wait(Step::Waiting);
+    LoseDeviceForTesting();
+    waitThread.join();
 }
 
 // Test that multiple buffers being created and mapped on multiple threads won't interfere with
@@ -207,14 +243,14 @@ TEST_P(MultithreadTests, Buffers_MapInParallel) {
             CreateBuffer(kSize, wgpu::BufferUsage::MapWrite | wgpu::BufferUsage::CopySrc);
 
         // Wait for the mapping to complete
-        ASSERT_EQ(instance.WaitAny(buffer.MapAsync(wgpu::MapMode::Write, 0, kSize,
-                                                   wgpu::CallbackMode::AllowProcessEvents,
-                                                   [](wgpu::MapAsyncStatus status, const char*) {
-                                                       ASSERT_EQ(status,
-                                                                 wgpu::MapAsyncStatus::Success);
-                                                   }),
-                                   UINT64_MAX),
-                  wgpu::WaitStatus::Success);
+        ASSERT_EQ(
+            instance.WaitAny(buffer.MapAsync(wgpu::MapMode::Write, 0, kSize,
+                                             wgpu::CallbackMode::AllowProcessEvents,
+                                             [](wgpu::MapAsyncStatus status, wgpu::StringView) {
+                                                 ASSERT_EQ(status, wgpu::MapAsyncStatus::Success);
+                                             }),
+                             UINT64_MAX),
+            wgpu::WaitStatus::Success);
 
         // Buffer is mapped, write into it and unmap .
         memcpy(buffer.GetMappedRange(0, kSize), myData.data(), kSize);
@@ -303,15 +339,15 @@ TEST_P(MultithreadTests, CreateComputePipelineAsyncInParallel) {
             wgpu::ComputePipeline computePipeline;
             std::atomic<bool> isCompleted{false};
         } task;
-        device.CreateComputePipelineAsync(&csDesc, wgpu::CallbackMode::AllowProcessEvents,
-                                          [&task](wgpu::CreatePipelineAsyncStatus status,
-                                                  wgpu::ComputePipeline pipeline, const char*) {
-                                              EXPECT_EQ(wgpu::CreatePipelineAsyncStatus::Success,
-                                                        status);
+        device.CreateComputePipelineAsync(
+            &csDesc, wgpu::CallbackMode::AllowProcessEvents,
+            [&task](wgpu::CreatePipelineAsyncStatus status, wgpu::ComputePipeline pipeline,
+                    wgpu::StringView) {
+                EXPECT_EQ(wgpu::CreatePipelineAsyncStatus::Success, status);
 
-                                              task.computePipeline = std::move(pipeline);
-                                              task.isCompleted = true;
-                                          });
+                task.computePipeline = std::move(pipeline);
+                task.isCompleted = true;
+            });
 
         while (!task.isCompleted.load()) {
             WaitABit();
@@ -472,7 +508,7 @@ TEST_P(MultithreadTests, CreateRenderPipelineAsyncInParallel) {
         device.CreateRenderPipelineAsync(
             &renderPipelineDescriptor, wgpu::CallbackMode::AllowProcessEvents,
             [&task](wgpu::CreatePipelineAsyncStatus status, wgpu::RenderPipeline pipeline,
-                    const char*) {
+                    wgpu::StringView) {
                 EXPECT_EQ(wgpu::CreatePipelineAsyncStatus::Success, status);
 
                 task.renderPipeline = std::move(pipeline);
@@ -744,9 +780,6 @@ TEST_P(MultithreadEncodingTests, RenderPassEncodersInParallel) {
 
 // Test that encoding render passes that resolve to a mip level in parallel should work
 TEST_P(MultithreadEncodingTests, RenderPassEncoders_ResolveToMipLevelOne_InParallel) {
-    // TODO(dawn:462): Issue in the D3D12 validation layers.
-    DAWN_SUPPRESS_TEST_IF(IsD3D12() && IsBackendValidationEnabled());
-
     constexpr uint32_t kRTSize = 16;
     constexpr uint32_t kNumThreads = 10;
 
@@ -1304,13 +1337,13 @@ TEST_P(MultithreadTextureCopyTests, CopyTextureForBrowserErrorNoDeadLock) {
         CopyTextureToTextureHelper(invalidSrcTexture, dest, dstSize, nullptr, &options);
 
         std::atomic<bool> errorThrown(false);
-        device.PopErrorScope(
-            wgpu::CallbackMode::AllowProcessEvents,
-            [&errorThrown](wgpu::PopErrorScopeStatus status, wgpu::ErrorType type, char const*) {
-                EXPECT_EQ(status, wgpu::PopErrorScopeStatus::Success);
-                EXPECT_EQ(type, wgpu::ErrorType::Validation);
-                errorThrown = true;
-            });
+        device.PopErrorScope(wgpu::CallbackMode::AllowProcessEvents,
+                             [&errorThrown](wgpu::PopErrorScopeStatus status, wgpu::ErrorType type,
+                                            wgpu::StringView) {
+                                 EXPECT_EQ(status, wgpu::PopErrorScopeStatus::Success);
+                                 EXPECT_EQ(type, wgpu::ErrorType::Validation);
+                                 errorThrown = true;
+                             });
         instance.ProcessEvents();
         EXPECT_TRUE(errorThrown.load());
 

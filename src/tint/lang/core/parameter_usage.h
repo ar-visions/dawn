@@ -40,7 +40,7 @@
 #include <cstdint>
 #include <string>
 
-#include "src/tint/utils/traits/traits.h"
+#include "src/tint/utils/rtti/traits.h"
 
 namespace tint::core {
 
@@ -48,22 +48,32 @@ namespace tint::core {
 /// overload position
 enum class ParameterUsage : uint8_t {
     kArrayIndex,
+    kBase,
     kBias,
+    kBits,
     kCompareValue,
     kComponent,
     kCoords,
     kDdx,
     kDdy,
+    kDelta,
     kDepth,
     kDepthRef,
+    kE,
     kElements,
+    kExp,
     kHeight,
+    kId,
     kInputAttachment,
+    kInsert,
     kLevel,
     kLocation,
+    kMask,
     kNumLevels,
     kOffset,
     kOriginalValue,
+    kRefz,
+    kResult,
     kSampleIndex,
     kSampler,
     kSamples,

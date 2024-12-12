@@ -6,14 +6,12 @@ struct main_inputs {
 static float p = 0.0f;
 groupshared float w;
 void main_inner(uint tint_local_index) {
-  if ((tint_local_index == 0u)) {
+  if ((tint_local_index < 1u)) {
     w = 0.0f;
   }
   GroupMemoryBarrierWithGroupSync();
-  float p_ptr = p;
-  float w_ptr = w;
-  float x = (p_ptr + w_ptr);
-  p_ptr = x;
+  float x = (p + w);
+  p = x;
 }
 
 [numthreads(1, 1, 1)]

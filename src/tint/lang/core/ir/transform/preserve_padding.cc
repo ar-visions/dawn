@@ -143,7 +143,7 @@ struct State {
                             });
                     },
                     [&](const type::Matrix* mat) {
-                        for (uint32_t i = 0; i < mat->columns(); i++) {
+                        for (uint32_t i = 0; i < mat->Columns(); i++) {
                             auto* col_ptr =
                                 b.Access(ty.ptr(storage, mat->ColumnType()), target, u32(i));
                             auto* col_value = b.Access(mat->ColumnType(), value_param, u32(i));
@@ -173,7 +173,7 @@ struct State {
 }  // namespace
 
 Result<SuccessType> PreservePadding(Module& ir) {
-    auto result = ValidateAndDumpIfNeeded(ir, "PreservePadding transform");
+    auto result = ValidateAndDumpIfNeeded(ir, "core.PreservePadding", kPreservePaddingCapabilities);
     if (result != Success) {
         return result;
     }

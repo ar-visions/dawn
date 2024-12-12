@@ -1,48 +1,57 @@
-SKIP: FAILED
-
 
 [numthreads(1, 1, 1)]
 void main() {
-  int k = 0;
+  int k = int(0);
   {
-    int i = 0;
+    uint2 tint_loop_idx = (0u).xx;
+    int i = int(0);
     while(true) {
-      if ((i < 2)) {
+      if (all((tint_loop_idx == (4294967295u).xx))) {
+        break;
+      }
+      if ((i < int(2))) {
       } else {
         break;
       }
+      bool tint_continue = false;
       switch(i) {
-        case 0:
+        case int(0):
         {
           {
-            int j = 0;
+            uint2 tint_loop_idx_1 = (0u).xx;
+            int j = int(0);
             while(true) {
-              if ((j < 2)) {
+              if (all((tint_loop_idx_1 == (4294967295u).xx))) {
+                break;
+              }
+              if ((j < int(2))) {
               } else {
                 break;
               }
+              bool tint_continue_1 = false;
               switch(j) {
-                case 0:
+                case int(0):
                 {
-                  {
-                    j = (j + 2);
-                  }
-                  continue;
+                  tint_continue_1 = true;
+                  break;
                 }
-                case 1:
+                case int(1):
                 {
+                  bool tint_continue_2 = false;
                   switch(k) {
-                    case 0:
+                    case int(0):
                     {
-                      {
-                        j = (j + 2);
-                      }
-                      continue;
+                      tint_continue_2 = true;
+                      break;
                     }
                     default:
                     {
                       break;
                     }
+                  }
+                  if (tint_continue_2) {
+                    tint_continue_1 = true;
+                    break;
                   }
                   break;
                 }
@@ -51,30 +60,53 @@ void main() {
                   break;
                 }
               }
+              if (tint_continue_1) {
+                {
+                  uint tint_low_inc_1 = (tint_loop_idx_1.x + 1u);
+                  tint_loop_idx_1.x = tint_low_inc_1;
+                  uint tint_carry_1 = uint((tint_low_inc_1 == 0u));
+                  tint_loop_idx_1.y = (tint_loop_idx_1.y + tint_carry_1);
+                  j = (j + int(2));
+                }
+                continue;
+              }
               {
-                j = (j + 2);
+                uint tint_low_inc_1 = (tint_loop_idx_1.x + 1u);
+                tint_loop_idx_1.x = tint_low_inc_1;
+                uint tint_carry_1 = uint((tint_low_inc_1 == 0u));
+                tint_loop_idx_1.y = (tint_loop_idx_1.y + tint_carry_1);
+                j = (j + int(2));
               }
               continue;
             }
           }
-          {
-            i = (i + 2);
-          }
-          continue;
+          tint_continue = true;
+          break;
         }
         default:
         {
           break;
         }
       }
+      if (tint_continue) {
+        {
+          uint tint_low_inc = (tint_loop_idx.x + 1u);
+          tint_loop_idx.x = tint_low_inc;
+          uint tint_carry = uint((tint_low_inc == 0u));
+          tint_loop_idx.y = (tint_loop_idx.y + tint_carry);
+          i = (i + int(2));
+        }
+        continue;
+      }
       {
-        i = (i + 2);
+        uint tint_low_inc = (tint_loop_idx.x + 1u);
+        tint_loop_idx.x = tint_low_inc;
+        uint tint_carry = uint((tint_low_inc == 0u));
+        tint_loop_idx.y = (tint_loop_idx.y + tint_carry);
+        i = (i + int(2));
       }
       continue;
     }
   }
 }
-
-FXC validation failure:
-c:\src\dawn\Shader@0x000001CB9A8AC650(28,19-27): error X3708: continue cannot be used in a switch
 

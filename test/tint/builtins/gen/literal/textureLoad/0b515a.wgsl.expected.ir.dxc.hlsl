@@ -1,9 +1,41 @@
-SKIP: FAILED
+//
+// fragment_main
+//
 
-..\..\src\tint\utils\containers\slice.h:216 internal compiler error: TINT_ASSERT(i < Length())
-********************************************************************
-*  The tint shader compiler has encountered an unexpected error.   *
-*                                                                  *
-*  Please help us fix this issue by submitting a bug report at     *
-*  crbug.com/tint with the source program that triggered the bug.  *
-********************************************************************
+RWByteAddressBuffer prevent_dce : register(u0);
+RWTexture2DArray<int4> arg_0 : register(u0, space1);
+int4 textureLoad_0b515a() {
+  uint3 v = (0u).xxx;
+  arg_0.GetDimensions(v.x, v.y, v.z);
+  uint3 v_1 = (0u).xxx;
+  arg_0.GetDimensions(v_1.x, v_1.y, v_1.z);
+  int2 v_2 = int2(min((1u).xx, (v_1.xy - (1u).xx)));
+  int4 res = int4(arg_0.Load(int4(v_2, int(min(1u, (v.z - 1u))), int(0))));
+  return res;
+}
+
+void fragment_main() {
+  prevent_dce.Store4(0u, asuint(textureLoad_0b515a()));
+}
+
+//
+// compute_main
+//
+
+RWByteAddressBuffer prevent_dce : register(u0);
+RWTexture2DArray<int4> arg_0 : register(u0, space1);
+int4 textureLoad_0b515a() {
+  uint3 v = (0u).xxx;
+  arg_0.GetDimensions(v.x, v.y, v.z);
+  uint3 v_1 = (0u).xxx;
+  arg_0.GetDimensions(v_1.x, v_1.y, v_1.z);
+  int2 v_2 = int2(min((1u).xx, (v_1.xy - (1u).xx)));
+  int4 res = int4(arg_0.Load(int4(v_2, int(min(1u, (v.z - 1u))), int(0))));
+  return res;
+}
+
+[numthreads(1, 1, 1)]
+void compute_main() {
+  prevent_dce.Store4(0u, asuint(textureLoad_0b515a()));
+}
+

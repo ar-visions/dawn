@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 struct f_inputs {
   uint tint_local_index : SV_GroupIndex;
@@ -68,10 +68,10 @@ void f_inner(uint tint_local_index) {
   GroupMemoryBarrierWithGroupSync();
   matrix<float16_t, 2, 3> v_12[4] = v_6(0u);
   w = v_12;
-  w[1] = v_4(32u);
-  w[1][0] = tint_bitcast_to_f16(u[0u]).xyz.zxy;
-  w[1][0][0u] = float16_t(f16tof32(u[0u].z));
-  s.Store<float16_t>(0u, w[1][0].x);
+  w[int(1)] = v_4(32u);
+  w[int(1)][int(0)] = tint_bitcast_to_f16(u[0u]).xyz.zxy;
+  w[int(1)][int(0)][0u] = float16_t(f16tof32(u[0u].z));
+  s.Store<float16_t>(0u, w[int(1)][int(0)].x);
 }
 
 [numthreads(1, 1, 1)]
@@ -80,5 +80,7 @@ void f(f_inputs inputs) {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x00000180D0312A00(10,20-28): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(10,20-28): error X3000: syntax error: unexpected token 'float16_t'
 
+
+tint executable returned error: exit status 1

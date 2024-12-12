@@ -137,10 +137,6 @@ uint32_t GPUSupportedLimits::getMaxVertexBufferArrayStride(Napi::Env) {
     return limits_.limits.maxVertexBufferArrayStride;
 }
 
-uint32_t GPUSupportedLimits::getMaxInterStageShaderComponents(Napi::Env) {
-    return limits_.limits.maxInterStageShaderComponents;
-}
-
 uint32_t GPUSupportedLimits::getMaxInterStageShaderVariables(Napi::Env) {
     return limits_.limits.maxInterStageShaderVariables;
 }
@@ -177,6 +173,7 @@ uint32_t GPUSupportedLimits::getMaxComputeWorkgroupsPerDimension(Napi::Env) {
     return limits_.limits.maxComputeWorkgroupsPerDimension;
 }
 
+// TODO(crbug.com/354751907) Move to GPUAdapterInfo
 std::variant<uint32_t, interop::UndefinedType> GPUSupportedLimits::getMinSubgroupSize(Napi::Env) {
     if (subgroup_limits_.has_value()) {
         return subgroup_limits_->minSubgroupSize;
@@ -184,6 +181,7 @@ std::variant<uint32_t, interop::UndefinedType> GPUSupportedLimits::getMinSubgrou
     return interop::Undefined;
 }
 
+// TODO(crbug.com/354751907) Move to GPUAdapterInfo
 std::variant<uint32_t, interop::UndefinedType> GPUSupportedLimits::getMaxSubgroupSize(Napi::Env) {
     if (subgroup_limits_.has_value()) {
         return subgroup_limits_->maxSubgroupSize;

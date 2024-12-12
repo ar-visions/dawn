@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 
 [numthreads(1, 1, 1)]
@@ -7,5 +7,7 @@ void f() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x0000015F1BB119F0(4,10-18): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(4,10-18): error X3000: syntax error: unexpected token 'float16_t'
 
+
+tint executable returned error: exit status 1

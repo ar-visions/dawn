@@ -73,7 +73,11 @@ int CompareIntelMesaDriverVersion(const DriverVersion& version1, const DriverVer
 
 // Intel architectures
 bool IsSkylake(PCIDeviceID deviceId);
+bool IsAlchemist(PCIDeviceID deviceId);
+bool IsMeteorlakeOrArrowlake(PCIDeviceID deviceId);
 bool IsIrisPlus655(PCIDeviceID deviceId);
+
+bool IsIntelGen11OrOlder(PCIVendorID venderId, PCIDeviceID deviceId);
 
 }  // namespace dawn::gpu_info
 #endif  // SRC_DAWN_COMMON_GPUINFO_H_

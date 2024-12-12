@@ -34,8 +34,10 @@
 #                       Do not modify this file directly
 ################################################################################
 
+include(lang/core/ir/analysis/BUILD.cmake)
 include(lang/core/ir/binary/BUILD.cmake)
 include(lang/core/ir/transform/BUILD.cmake)
+include(lang/core/ir/type/BUILD.cmake)
 
 ################################################################################
 # Target:    tint_lang_core_ir
@@ -82,6 +84,8 @@ tint_add_target(tint_lang_core_ir lib
   lang/core/ir/disassembler.h
   lang/core/ir/discard.cc
   lang/core/ir/discard.h
+  lang/core/ir/evaluator.cc
+  lang/core/ir/evaluator.h
   lang/core/ir/exit.cc
   lang/core/ir/exit.h
   lang/core/ir/exit_if.cc
@@ -119,6 +123,11 @@ tint_add_target(tint_lang_core_ir lib
   lang/core/ir/next_iteration.h
   lang/core/ir/operand_instruction.cc
   lang/core/ir/operand_instruction.h
+  lang/core/ir/override.cc
+  lang/core/ir/override.h
+  lang/core/ir/referenced_functions.h
+  lang/core/ir/referenced_module_decls.h
+  lang/core/ir/referenced_module_vars.h
   lang/core/ir/return.cc
   lang/core/ir/return.h
   lang/core/ir/store.cc
@@ -155,20 +164,23 @@ tint_target_add_dependencies(tint_lang_core_ir lib
   tint_lang_core
   tint_lang_core_constant
   tint_lang_core_intrinsic
+  tint_lang_core_ir_type
   tint_lang_core_type
+  tint_utils
   tint_utils_containers
   tint_utils_diagnostic
   tint_utils_ice
-  tint_utils_id
   tint_utils_macros
   tint_utils_math
   tint_utils_memory
-  tint_utils_reflection
   tint_utils_result
   tint_utils_rtti
   tint_utils_symbol
   tint_utils_text
-  tint_utils_traits
+)
+
+tint_target_add_external_dependencies(tint_lang_core_ir lib
+  "src_utils"
 )
 
 ################################################################################
@@ -181,6 +193,7 @@ tint_add_target(tint_lang_core_ir_test test
   lang/core/ir/block_param_test.cc
   lang/core/ir/block_test.cc
   lang/core/ir/break_if_test.cc
+  lang/core/ir/builder_test.cc
   lang/core/ir/constant_test.cc
   lang/core/ir/construct_test.cc
   lang/core/ir/continue_test.cc
@@ -189,6 +202,7 @@ tint_add_target(tint_lang_core_ir_test test
   lang/core/ir/core_builtin_call_test.cc
   lang/core/ir/core_unary_test.cc
   lang/core/ir/discard_test.cc
+  lang/core/ir/evaluator_test.cc
   lang/core/ir/exit_if_test.cc
   lang/core/ir/exit_loop_test.cc
   lang/core/ir/exit_switch_test.cc
@@ -206,6 +220,10 @@ tint_add_target(tint_lang_core_ir_test test
   lang/core/ir/multi_in_block_test.cc
   lang/core/ir/next_iteration_test.cc
   lang/core/ir/operand_instruction_test.cc
+  lang/core/ir/override_test.cc
+  lang/core/ir/referenced_functions_test.cc
+  lang/core/ir/referenced_module_decls_test.cc
+  lang/core/ir/referenced_module_vars_test.cc
   lang/core/ir/return_test.cc
   lang/core/ir/store_test.cc
   lang/core/ir/store_vector_element_test.cc
@@ -226,22 +244,71 @@ tint_target_add_dependencies(tint_lang_core_ir_test test
   tint_lang_core_constant
   tint_lang_core_intrinsic
   tint_lang_core_ir
+  tint_lang_core_ir_type
   tint_lang_core_type
+  tint_utils
   tint_utils_containers
   tint_utils_diagnostic
   tint_utils_ice
-  tint_utils_id
   tint_utils_macros
   tint_utils_math
   tint_utils_memory
-  tint_utils_reflection
   tint_utils_result
   tint_utils_rtti
   tint_utils_symbol
   tint_utils_text
-  tint_utils_traits
 )
 
 tint_target_add_external_dependencies(tint_lang_core_ir_test test
   "gtest"
+  "src_utils"
 )
+
+if(TINT_BUILD_WGSL_READER)
+################################################################################
+# Target:    tint_lang_core_ir_bench
+# Kind:      bench
+# Condition: TINT_BUILD_WGSL_READER
+################################################################################
+tint_add_target(tint_lang_core_ir_bench bench
+  lang/core/ir/validator_bench.cc
+)
+
+tint_target_add_dependencies(tint_lang_core_ir_bench bench
+  tint_api_common
+  tint_lang_core
+  tint_lang_core_constant
+  tint_lang_core_ir
+  tint_lang_core_type
+  tint_lang_wgsl
+  tint_lang_wgsl_ast
+  tint_lang_wgsl_common
+  tint_lang_wgsl_features
+  tint_lang_wgsl_program
+  tint_lang_wgsl_sem
+  tint_utils
+  tint_utils_containers
+  tint_utils_diagnostic
+  tint_utils_ice
+  tint_utils_macros
+  tint_utils_math
+  tint_utils_memory
+  tint_utils_result
+  tint_utils_rtti
+  tint_utils_symbol
+  tint_utils_text
+)
+
+tint_target_add_external_dependencies(tint_lang_core_ir_bench bench
+  "google-benchmark"
+  "src_utils"
+)
+
+if(TINT_BUILD_WGSL_READER)
+  tint_target_add_dependencies(tint_lang_core_ir_bench bench
+    tint_cmd_bench_bench
+    tint_lang_wgsl_reader
+  )
+endif(TINT_BUILD_WGSL_READER)
+
+endif(TINT_BUILD_WGSL_READER)

@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 struct compute_main_inputs {
   uint tint_local_index : SV_GroupIndex;
@@ -29,5 +29,7 @@ void compute_main(compute_main_inputs inputs) {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x0000025AB4733A30(7,13-21): error X3000: unrecognized identifier 'float16_t'
+<scrubbed_path>(7,13-21): error X3000: unrecognized identifier 'float16_t'
 
+
+tint executable returned error: exit status 1

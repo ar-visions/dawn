@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 struct VertexOutput {
   float4 pos;
@@ -43,5 +43,7 @@ vertex_main_outputs vertex_main() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x000001F2818BC3A0(3,3-11): error X3000: unrecognized identifier 'float16_t'
+<scrubbed_path>(3,3-11): error X3000: unrecognized identifier 'float16_t'
 
+
+tint executable returned error: exit status 1

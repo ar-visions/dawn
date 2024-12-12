@@ -2,9 +2,9 @@
 cbuffer cbuffer_m : register(b0) {
   uint4 m[1];
 };
-static int counter = 0;
+static int counter = int(0);
 int i() {
-  counter = (counter + 1);
+  counter = (counter + int(1));
   return counter;
 }
 
@@ -17,7 +17,7 @@ float2x2 v(uint start_byte_offset) {
 
 [numthreads(1, 1, 1)]
 void f() {
-  uint v_4 = (8u * uint(i()));
+  uint v_4 = (8u * uint(min(uint(i()), 1u)));
   float2x2 l_m = v(0u);
   uint4 v_5 = m[(v_4 / 16u)];
   float2 l_m_i = asfloat((((((v_4 % 16u) / 4u) == 2u)) ? (v_5.zw) : (v_5.xy)));

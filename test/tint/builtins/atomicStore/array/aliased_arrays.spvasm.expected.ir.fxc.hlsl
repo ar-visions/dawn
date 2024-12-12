@@ -18,7 +18,11 @@ void compute_main_inner(uint local_invocation_index_2) {
   uint idx = 0u;
   idx = local_invocation_index_2;
   {
+    uint2 tint_loop_idx = (0u).xx;
     while(true) {
+      if (all((tint_loop_idx == (4294967295u).xx))) {
+        break;
+      }
       if (!((idx < 6u))) {
         break;
       }
@@ -27,17 +31,22 @@ void compute_main_inner(uint local_invocation_index_2) {
       uint x_35 = idx;
       uint v_1 = tint_div_u32(x_31, 2u);
       uint v_2 = tint_mod_u32(x_33, 2u);
-      uint v_3 = 0u;
-      InterlockedExchange(wg[v_1][v_2][tint_mod_u32(x_35, 1u)], 0u, v_3);
+      uint v_3 = min(tint_mod_u32(x_35, 1u), 0u);
+      uint v_4 = 0u;
+      InterlockedExchange(wg[min(v_1, 2u)][min(v_2, 1u)][v_3], 0u, v_4);
       {
+        uint tint_low_inc = (tint_loop_idx.x + 1u);
+        tint_loop_idx.x = tint_low_inc;
+        uint tint_carry = uint((tint_low_inc == 0u));
+        tint_loop_idx.y = (tint_loop_idx.y + tint_carry);
         idx = (idx + 1u);
       }
       continue;
     }
   }
   GroupMemoryBarrierWithGroupSync();
-  uint v_4 = 0u;
-  InterlockedExchange(wg[2][1][0], 1u, v_4);
+  uint v_5 = 0u;
+  InterlockedExchange(wg[2u][1u][0u], 1u, v_5);
 }
 
 void compute_main_1() {
@@ -47,17 +56,17 @@ void compute_main_1() {
 
 void compute_main_inner_1(uint local_invocation_index_1_param) {
   {
-    uint v_5 = 0u;
-    v_5 = local_invocation_index_1_param;
+    uint v_6 = 0u;
+    v_6 = local_invocation_index_1_param;
     while(true) {
-      uint v_6 = v_5;
-      if ((v_6 >= 6u)) {
+      uint v_7 = v_6;
+      if ((v_7 >= 6u)) {
         break;
       }
-      uint v_7 = 0u;
-      InterlockedExchange(wg[(v_6 / 2u)][(v_6 % 2u)][0u], 0u, v_7);
+      uint v_8 = 0u;
+      InterlockedExchange(wg[(v_7 / 2u)][(v_7 % 2u)][0u], 0u, v_8);
       {
-        v_5 = (v_6 + 1u);
+        v_6 = (v_7 + 1u);
       }
       continue;
     }

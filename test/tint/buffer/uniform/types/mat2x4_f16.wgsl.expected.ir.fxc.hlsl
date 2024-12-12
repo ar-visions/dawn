@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 
 cbuffer cbuffer_u : register(b0) {
@@ -34,6 +34,8 @@ void main() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x0000024026A459D0(6,30-38): error X3000: syntax error: unexpected token 'float16_t'
-c:\src\dawn\Shader@0x0000024026A459D0(7,3-9): error X3018: invalid subscript 'Store'
+<scrubbed_path>(6,30-38): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(7,3-9): error X3018: invalid subscript 'Store'
 
+
+tint executable returned error: exit status 1

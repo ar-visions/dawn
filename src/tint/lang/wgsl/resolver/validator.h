@@ -38,7 +38,6 @@
 #include "src/tint/lang/wgsl/ast/input_attachment_index_attribute.h"
 #include "src/tint/lang/wgsl/ast/pipeline_stage.h"
 #include "src/tint/lang/wgsl/common/allowed_features.h"
-#include "src/tint/lang/wgsl/common/validation_mode.h"
 #include "src/tint/lang/wgsl/program/program_builder.h"
 #include "src/tint/lang/wgsl/resolver/sem_helper.h"
 #include "src/tint/utils/containers/hashmap.h"
@@ -128,14 +127,12 @@ class Validator {
     /// @param helper the SEM helper to validate with
     /// @param enabled_extensions all the extensions declared in current module
     /// @param allowed_features the allowed extensions and features
-    /// @param mode the validation mode to use
     /// @param atomic_composite_info atomic composite info of the module
     /// @param valid_type_storage_layouts a set of validated type layouts by address space
     Validator(ProgramBuilder* builder,
               SemHelper& helper,
               const wgsl::Extensions& enabled_extensions,
               const wgsl::AllowedFeatures& allowed_features,
-              wgsl::ValidationMode mode,
               const Hashmap<const core::type::Type*, const Source*, 8>& atomic_composite_info,
               Hashset<TypeAndAddressSpace, 8>& valid_type_storage_layouts);
     ~Validator();
@@ -254,11 +251,13 @@ class Validator {
     /// @param storage_type the attribute storage type
     /// @param stage the current pipeline stage
     /// @param is_input true if this is an input attribute
+    /// @param ignore_clip_distances_type_validation true if ignore type check on clip_distances
     /// @returns true on success, false otherwise.
     bool BuiltinAttribute(const ast::BuiltinAttribute* attr,
                           const core::type::Type* storage_type,
                           ast::PipelineStage stage,
-                          const bool is_input) const;
+                          const bool is_input,
+                          const bool ignore_clip_distances_type_validation = false) const;
 
     /// Validates a continue statement
     /// @param stmt the continue statement to validate
@@ -529,6 +528,12 @@ class Validator {
     /// @returns true on success, false otherwise
     bool ArrayConstructor(const ast::CallExpression* ctor, const sem::Array* arr_type) const;
 
+    /// Validates a subgroupShuffle builtin functions including Up,Down, and Xor.
+    /// @param fn the builtin call type
+    /// @param call the builtin call to validate
+    /// @returns true on success, false otherwise
+    bool SubgroupShuffleFunction(wgsl::BuiltinFn fn, const sem::Call* call) const;
+
     /// Validates a texture builtin function
     /// @param call the builtin call to validate
     /// @returns true on success, false otherwise
@@ -543,6 +548,11 @@ class Validator {
     /// @param call the builtin call to validate
     /// @returns true on success, false otherwise
     bool SubgroupBroadcast(const sem::Call* call) const;
+
+    /// Validates a quadBroadcast builtin function
+    /// @param call the builtin call to validate
+    /// @returns true on success, false otherwise
+    bool QuadBroadcast(const sem::Call* call) const;
 
     /// Validates an optional builtin function and its required extensions and language features.
     /// @param call the builtin call to validate
@@ -651,7 +661,6 @@ class Validator {
     DiagnosticFilterStack diagnostic_filters_;
     const wgsl::Extensions& enabled_extensions_;
     const wgsl::AllowedFeatures& allowed_features_;
-    const wgsl::ValidationMode mode_;
     const Hashmap<const core::type::Type*, const Source*, 8>& atomic_composite_info_;
     Hashset<TypeAndAddressSpace, 8>& valid_type_storage_layouts_;
 };

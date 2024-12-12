@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 struct frexp_result_f16 {
   float16_t fract;
@@ -15,7 +15,7 @@ struct vertex_main_outputs {
 
 
 void frexp_5257dd() {
-  frexp_result_f16 res = {float16_t(0.5h), 1};
+  frexp_result_f16 res = {float16_t(0.5h), int(1)};
 }
 
 void fragment_main() {
@@ -42,5 +42,7 @@ vertex_main_outputs vertex_main() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x0000021FEF79FAB0(2,3-11): error X3000: unrecognized identifier 'float16_t'
+<scrubbed_path>(2,3-11): error X3000: unrecognized identifier 'float16_t'
 
+
+tint executable returned error: exit status 1

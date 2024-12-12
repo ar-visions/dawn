@@ -46,7 +46,7 @@ void tint_symbol_inner(uint tint_local_index, tint_module_vars_struct tint_modul
     }
   }
   threadgroup_barrier(mem_flags::mem_threadgroup);
-  func((&(*tint_module_vars.S)[2]));
+  func((&(*tint_module_vars.S)[2u]));
 }
 
 kernel void tint_symbol(uint tint_local_index [[thread_index_in_threadgroup]], threadgroup tint_symbol_2* v_2 [[threadgroup(0)]]) {

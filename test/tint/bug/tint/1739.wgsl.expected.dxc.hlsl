@@ -1,5 +1,5 @@
 uint2 tint_ftou(float2 v) {
-  return ((v < (4294967040.0f).xx) ? ((v < (0.0f).xx) ? (0u).xx : uint2(v)) : (4294967295u).xx);
+  return ((v <= (4294967040.0f).xx) ? ((v < (0.0f).xx) ? (0u).xx : uint2(v)) : (4294967295u).xx);
 }
 
 struct GammaTransferParams {
@@ -25,7 +25,7 @@ struct ExternalTextureParams {
   float2 samplePlane0RectMax;
   float2 samplePlane1RectMin;
   float2 samplePlane1RectMax;
-  uint2 visibleSize;
+  uint2 apparentSize;
   float2 plane1CoordFactor;
 };
 
@@ -44,7 +44,7 @@ float3 gammaCorrection(float3 v, GammaTransferParams params) {
 }
 
 float4 textureLoadExternal(Texture2D<float4> plane0, Texture2D<float4> plane1, int2 coord, ExternalTextureParams params) {
-  uint2 clampedCoords = min(uint2(coord), params.visibleSize);
+  uint2 clampedCoords = min(uint2(coord), params.apparentSize);
   uint2 plane0_clamped = tint_ftou(round(mul(float3(float2(clampedCoords), 1.0f), params.loadTransform)));
   float4 color = float4(0.0f, 0.0f, 0.0f, 0.0f);
   if ((params.numPlanes == 1u)) {

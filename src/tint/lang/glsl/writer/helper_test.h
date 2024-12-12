@@ -61,11 +61,11 @@ class GlslWriterTestHelperBase : public BASE {
     Output output_;
 
     /// Run the writer on the IR module and validate the result.
-    /// @param stage the validation stage
     /// @param options the writer options
+    /// @param stage the validation stage
     /// @returns true if generation and validation succeeded
-    bool Generate(tint::ast::PipelineStage stage = tint::ast::PipelineStage::kCompute,
-                  Options options = {}) {
+    bool Generate(Options options = {},
+                  tint::ast::PipelineStage stage = tint::ast::PipelineStage::kCompute) {
         auto result = writer::Generate(mod, options, "");
         if (result != Success) {
             err_ = result.Failure().reason.Str();
@@ -90,7 +90,7 @@ class GlslWriterTestHelperBase : public BASE {
         return true;
     }
 
-    /// @returns the metal header string
+    /// @returns the glsl header string
     std::string GlslHeader() const {
         std::stringstream ver;
         ver << "#version " << version.major_version << version.minor_version << "0";

@@ -120,19 +120,7 @@ func (c Content) Write(w io.Writer) error {
 			}
 		}
 		for _, expectation := range chunk.Expectations {
-			parts := []string{}
-			if expectation.Bug != "" {
-				parts = append(parts, expectation.Bug)
-			}
-			if len(expectation.Tags) > 0 {
-				parts = append(parts, fmt.Sprintf("[ %v ]", strings.Join(expectation.Tags.List(), " ")))
-			}
-			parts = append(parts, expectation.Query)
-			parts = append(parts, fmt.Sprintf("[ %v ]", strings.Join(expectation.Status, " ")))
-			if expectation.Comment != "" {
-				parts = append(parts, expectation.Comment)
-			}
-			if _, err := fmt.Fprintln(w, strings.Join(parts, " ")); err != nil {
+			if _, err := fmt.Fprintln(w, expectation.AsExpectationFileString()); err != nil {
 				return err
 			}
 		}
@@ -170,6 +158,24 @@ func (c Chunk) Clone() Chunk {
 		expectations[i] = e.Clone()
 	}
 	return Chunk{comments, expectations}
+}
+
+// AsExpectationFileString returns the human-readable form of the expectation
+// that matches the syntax of the expectation files.
+func (e Expectation) AsExpectationFileString() string {
+	parts := []string{}
+	if e.Bug != "" {
+		parts = append(parts, e.Bug)
+	}
+	if len(e.Tags) > 0 {
+		parts = append(parts, fmt.Sprintf("[ %v ]", strings.Join(e.Tags.List(), " ")))
+	}
+	parts = append(parts, e.Query)
+	parts = append(parts, fmt.Sprintf("[ %v ]", strings.Join(e.Status, " ")))
+	if e.Comment != "" {
+		parts = append(parts, e.Comment)
+	}
+	return strings.Join(parts, " ")
 }
 
 // Clone makes a deep-copy of the Expectation.
@@ -218,7 +224,37 @@ func (e Expectation) Compare(b Expectation) int {
 	return 0
 }
 
+// ComparePrioritizeQuery is the same as Compare, but compares in the following
+// order: query, tags, bug.
+func (e Expectation) ComparePrioritizeQuery(other Expectation) int {
+	switch strings.Compare(e.Query, other.Query) {
+	case -1:
+		return -1
+	case 1:
+		return 1
+	}
+	switch strings.Compare(result.TagsToString(e.Tags), result.TagsToString(other.Tags)) {
+	case -1:
+		return -1
+	case 1:
+		return 1
+	}
+	switch strings.Compare(e.Bug, other.Bug) {
+	case -1:
+		return -1
+	case 1:
+		return 1
+	}
+	return 0
+}
+
 // Sort sorts the expectations in-place
 func (e Expectations) Sort() {
 	sort.Slice(e, func(i, j int) bool { return e[i].Compare(e[j]) < 0 })
+}
+
+// SortPrioritizeQuery sorts the expectations in-place, prioritizing the query for
+// sorting order.
+func (e Expectations) SortPrioritizeQuery() {
+	sort.Slice(e, func(i, j int) bool { return e[i].ComparePrioritizeQuery(e[j]) < 0 })
 }

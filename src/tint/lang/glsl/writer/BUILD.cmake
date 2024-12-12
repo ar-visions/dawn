@@ -34,8 +34,6 @@
 #                       Do not modify this file directly
 ################################################################################
 
-include(lang/glsl/writer/ast_printer/BUILD.cmake)
-include(lang/glsl/writer/ast_raise/BUILD.cmake)
 include(lang/glsl/writer/common/BUILD.cmake)
 include(lang/glsl/writer/helpers/BUILD.cmake)
 include(lang/glsl/writer/printer/BUILD.cmake)
@@ -48,8 +46,6 @@ if(TINT_BUILD_GLSL_WRITER)
 # Condition: TINT_BUILD_GLSL_WRITER
 ################################################################################
 tint_add_target(tint_lang_glsl_writer lib
-  lang/glsl/writer/output.cc
-  lang/glsl/writer/output.h
   lang/glsl/writer/writer.cc
   lang/glsl/writer/writer.h
 )
@@ -62,28 +58,27 @@ tint_target_add_dependencies(tint_lang_glsl_writer lib
   tint_lang_wgsl
   tint_lang_wgsl_ast
   tint_lang_wgsl_ast_transform
-  tint_lang_wgsl_features
   tint_lang_wgsl_program
   tint_lang_wgsl_sem
+  tint_utils
   tint_utils_containers
   tint_utils_diagnostic
-  tint_utils_generator
   tint_utils_ice
-  tint_utils_id
   tint_utils_macros
   tint_utils_math
   tint_utils_memory
-  tint_utils_reflection
   tint_utils_result
   tint_utils_rtti
   tint_utils_symbol
   tint_utils_text
-  tint_utils_traits
+)
+
+tint_target_add_external_dependencies(tint_lang_glsl_writer lib
+  "src_utils"
 )
 
 if(TINT_BUILD_GLSL_WRITER)
   tint_target_add_dependencies(tint_lang_glsl_writer lib
-    tint_lang_glsl_writer_ast_printer
     tint_lang_glsl_writer_common
     tint_lang_glsl_writer_printer
     tint_lang_glsl_writer_raise
@@ -98,9 +93,19 @@ if(TINT_BUILD_GLSL_WRITER AND TINT_BUILD_GLSL_VALIDATOR)
 # Condition: TINT_BUILD_GLSL_WRITER AND TINT_BUILD_GLSL_VALIDATOR
 ################################################################################
 tint_add_target(tint_lang_glsl_writer_test test
+  lang/glsl/writer/access_test.cc
+  lang/glsl/writer/binary_test.cc
+  lang/glsl/writer/builtin_test.cc
   lang/glsl/writer/call_test.cc
   lang/glsl/writer/constant_test.cc
+  lang/glsl/writer/constructor_test.cc
+  lang/glsl/writer/convert_test.cc
   lang/glsl/writer/function_test.cc
+  lang/glsl/writer/if_test.cc
+  lang/glsl/writer/loop_test.cc
+  lang/glsl/writer/switch_test.cc
+  lang/glsl/writer/type_test.cc
+  lang/glsl/writer/unary_test.cc
   lang/glsl/writer/var_and_let_test.cc
 )
 
@@ -116,23 +121,22 @@ tint_target_add_dependencies(tint_lang_glsl_writer_test test
   tint_lang_wgsl_ast_transform
   tint_lang_wgsl_program
   tint_lang_wgsl_sem
+  tint_utils
   tint_utils_containers
   tint_utils_diagnostic
   tint_utils_ice
-  tint_utils_id
   tint_utils_macros
   tint_utils_math
   tint_utils_memory
-  tint_utils_reflection
   tint_utils_result
   tint_utils_rtti
   tint_utils_symbol
   tint_utils_text
-  tint_utils_traits
 )
 
 tint_target_add_external_dependencies(tint_lang_glsl_writer_test test
   "gtest"
+  "src_utils"
 )
 
 if(TINT_BUILD_GLSL_VALIDATOR)
@@ -152,11 +156,11 @@ if(TINT_BUILD_GLSL_WRITER)
 endif(TINT_BUILD_GLSL_WRITER)
 
 endif(TINT_BUILD_GLSL_WRITER AND TINT_BUILD_GLSL_VALIDATOR)
-if(TINT_BUILD_GLSL_WRITER AND TINT_BUILD_SPV_READER AND TINT_BUILD_WGSL_READER AND TINT_BUILD_WGSL_WRITER)
+if(TINT_BUILD_GLSL_WRITER AND TINT_BUILD_WGSL_READER)
 ################################################################################
 # Target:    tint_lang_glsl_writer_bench
 # Kind:      bench
-# Condition: TINT_BUILD_GLSL_WRITER AND TINT_BUILD_SPV_READER AND TINT_BUILD_WGSL_READER AND TINT_BUILD_WGSL_WRITER
+# Condition: TINT_BUILD_GLSL_WRITER AND TINT_BUILD_WGSL_READER
 ################################################################################
 tint_add_target(tint_lang_glsl_writer_bench bench
   lang/glsl/writer/writer_bench.cc
@@ -166,46 +170,51 @@ tint_target_add_dependencies(tint_lang_glsl_writer_bench bench
   tint_api_common
   tint_lang_core
   tint_lang_core_constant
+  tint_lang_core_ir
+  tint_lang_core_ir_transform
   tint_lang_core_type
   tint_lang_wgsl
   tint_lang_wgsl_ast
   tint_lang_wgsl_ast_transform
+  tint_lang_wgsl_common
   tint_lang_wgsl_features
+  tint_lang_wgsl_inspector
   tint_lang_wgsl_program
   tint_lang_wgsl_sem
+  tint_utils
   tint_utils_containers
   tint_utils_diagnostic
   tint_utils_ice
-  tint_utils_id
   tint_utils_macros
   tint_utils_math
   tint_utils_memory
-  tint_utils_reflection
   tint_utils_result
   tint_utils_rtti
   tint_utils_symbol
   tint_utils_text
-  tint_utils_traits
 )
 
 tint_target_add_external_dependencies(tint_lang_glsl_writer_bench bench
   "google-benchmark"
+  "src_utils"
 )
 
 if(TINT_BUILD_GLSL_WRITER)
   tint_target_add_dependencies(tint_lang_glsl_writer_bench bench
     tint_lang_glsl_writer
     tint_lang_glsl_writer_common
+    tint_lang_glsl_writer_helpers
   )
 endif(TINT_BUILD_GLSL_WRITER)
 
-if(TINT_BUILD_SPV_READER AND TINT_BUILD_WGSL_READER AND TINT_BUILD_WGSL_WRITER)
+if(TINT_BUILD_WGSL_READER)
   tint_target_add_dependencies(tint_lang_glsl_writer_bench bench
     tint_cmd_bench_bench
+    tint_lang_wgsl_reader
   )
-endif(TINT_BUILD_SPV_READER AND TINT_BUILD_WGSL_READER AND TINT_BUILD_WGSL_WRITER)
+endif(TINT_BUILD_WGSL_READER)
 
-endif(TINT_BUILD_GLSL_WRITER AND TINT_BUILD_SPV_READER AND TINT_BUILD_WGSL_READER AND TINT_BUILD_WGSL_WRITER)
+endif(TINT_BUILD_GLSL_WRITER AND TINT_BUILD_WGSL_READER)
 if(TINT_BUILD_GLSL_WRITER)
 ################################################################################
 # Target:    tint_lang_glsl_writer_fuzz
@@ -213,50 +222,47 @@ if(TINT_BUILD_GLSL_WRITER)
 # Condition: TINT_BUILD_GLSL_WRITER
 ################################################################################
 tint_add_target(tint_lang_glsl_writer_fuzz fuzz
+  lang/glsl/writer/writer_fuzz.cc
 )
 
 tint_target_add_dependencies(tint_lang_glsl_writer_fuzz fuzz
   tint_api_common
+  tint_cmd_fuzz_ir_fuzz
   tint_lang_core
   tint_lang_core_constant
+  tint_lang_core_intrinsic
+  tint_lang_core_ir
+  tint_lang_core_ir_transform
   tint_lang_core_type
   tint_lang_wgsl
   tint_lang_wgsl_ast
   tint_lang_wgsl_ast_transform
-  tint_lang_wgsl_features
-  tint_lang_wgsl_inspector
   tint_lang_wgsl_program
   tint_lang_wgsl_sem
+  tint_utils
   tint_utils_bytes
   tint_utils_containers
   tint_utils_diagnostic
   tint_utils_ice
-  tint_utils_id
   tint_utils_macros
   tint_utils_math
   tint_utils_memory
-  tint_utils_reflection
   tint_utils_result
   tint_utils_rtti
   tint_utils_symbol
   tint_utils_text
-  tint_utils_traits
+)
+
+tint_target_add_external_dependencies(tint_lang_glsl_writer_fuzz fuzz
+  "src_utils"
 )
 
 if(TINT_BUILD_GLSL_WRITER)
   tint_target_add_dependencies(tint_lang_glsl_writer_fuzz fuzz
     tint_lang_glsl_writer
     tint_lang_glsl_writer_common
+    tint_lang_glsl_writer_helpers
   )
 endif(TINT_BUILD_GLSL_WRITER)
-
-if(TINT_BUILD_WGSL_READER)
-  tint_target_add_sources(tint_lang_glsl_writer_fuzz fuzz
-    "lang/glsl/writer/writer_ast_fuzz.cc"
-  )
-  tint_target_add_dependencies(tint_lang_glsl_writer_fuzz fuzz
-    tint_cmd_fuzz_wgsl_fuzz
-  )
-endif(TINT_BUILD_WGSL_READER)
 
 endif(TINT_BUILD_GLSL_WRITER)

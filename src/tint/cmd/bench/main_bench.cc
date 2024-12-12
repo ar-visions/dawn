@@ -25,11 +25,15 @@
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include <iomanip>
 #include <iostream>
 
 #include "src/tint/cmd/bench/bench.h"
 #include "src/tint/utils/text/string.h"
+
+namespace {
+
+// Toggle to use the Google Benchmark output format instead of the Chromium Perf format.
+static bool use_chrome_perf_format = false;
 
 /// ChromePerfReporter is a custom benchmark reporter used to output benchmark results in the format
 /// required for the Chrome Perf waterfall, as described here:
@@ -81,13 +85,35 @@ class ChromePerfReporter final : public benchmark::BenchmarkReporter {
     void Finalize() override {}
 };
 
+bool ParseExtraCommandLineArgs(int argc, char** argv) {
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--use-chrome-perf-format") == 0) {
+            use_chrome_perf_format = true;
+        } else {
+            // Accept the flags that are passed by the Chromium perf waterfall, which treats this
+            // executable as a GoogleTest binary.
+            if (strcmp(argv[i], "--verbose") != 0 &&
+                strcmp(argv[i], "--test-launcher-print-test-stdio=always") != 0 &&
+                strcmp(argv[i], "--test-launcher-total-shards=1") != 0 &&
+                strcmp(argv[i], "--test-launcher-shard-index=0") != 0) {
+                std::cerr << "Unrecognized command-line argument: " << argv[i] << "\n";
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+}  // namespace
+
 int main(int argc, char** argv) {
     benchmark::Initialize(&argc, argv);
-    if (benchmark::ReportUnrecognizedArguments(argc, argv)) {
+    if (!ParseExtraCommandLineArgs(argc, argv)) {
         return 1;
     }
-    if (!tint::bench::Initialize()) {
-        return 1;
+    if (use_chrome_perf_format) {
+        benchmark::RunSpecifiedBenchmarks(new ChromePerfReporter);
+    } else {
+        benchmark::RunSpecifiedBenchmarks();
     }
-    benchmark::RunSpecifiedBenchmarks(new ChromePerfReporter);
 }

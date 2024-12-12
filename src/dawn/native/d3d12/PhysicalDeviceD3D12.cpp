@@ -57,7 +57,7 @@ bool PhysicalDevice::SupportsExternalImages() const {
     return true;
 }
 
-bool PhysicalDevice::SupportsFeatureLevel(FeatureLevel) const {
+bool PhysicalDevice::SupportsFeatureLevel(wgpu::FeatureLevel) const {
     return true;
 }
 
@@ -133,8 +133,8 @@ void PhysicalDevice::InitializeSupportedFeaturesImpl() {
     EnableFeature(Feature::IndirectFirstInstance);
     EnableFeature(Feature::RG11B10UfloatRenderable);
     EnableFeature(Feature::DepthClipControl);
-    EnableFeature(Feature::SurfaceCapabilities);
     EnableFeature(Feature::Float32Filterable);
+    EnableFeature(Feature::Float32Blendable);
     EnableFeature(Feature::DualSourceBlending);
     EnableFeature(Feature::Unorm16TextureFormats);
     EnableFeature(Feature::Snorm16TextureFormats);
@@ -146,6 +146,8 @@ void PhysicalDevice::InitializeSupportedFeaturesImpl() {
     EnableFeature(Feature::SharedBufferMemoryD3D12Resource);
     EnableFeature(Feature::ShaderModuleCompilationOptions);
     EnableFeature(Feature::StaticSamplers);
+    EnableFeature(Feature::MultiDrawIndirect);
+    EnableFeature(Feature::ClipDistances);
 
     if (AreTimestampQueriesSupported()) {
         EnableFeature(Feature::TimestampQuery);
@@ -161,12 +163,11 @@ void PhysicalDevice::InitializeSupportedFeaturesImpl() {
         shaderF16Enabled = true;
     }
 
-    // ChromiumExperimentalSubgroups requires SM >= 6.0 and capabilities flags.
+    // Subgroups feature requires SM >= 6.0 and capabilities flags.
     if (GetBackend()->IsDXCAvailable() && mDeviceInfo.supportsWaveOps) {
-        // TODO(349125474): Remove deprecated ChromiumExperimentalSubgroups.
-        EnableFeature(Feature::ChromiumExperimentalSubgroups);
         EnableFeature(Feature::Subgroups);
         // D3D12 devices that support both native f16 and wave ops can support subgroups-f16.
+        // TODO(crbug.com/380244620): Remove when 'subgroups_f16' has been fully deprecated.
         if (shaderF16Enabled) {
             EnableFeature(Feature::SubgroupsF16);
         }
@@ -352,19 +353,9 @@ MaybeError PhysicalDevice::InitializeSupportedLimitsImpl(CombinedLimits* limits)
     // Max number of "constants" where each constant is a 16-byte float4
     limits->v1.maxUniformBufferBindingSize = D3D12_REQ_CONSTANT_BUFFER_ELEMENT_COUNT * 16;
 
-    if (gpu_info::IsQualcomm(GetVendorId())) {
-        // limit of number of texels in a buffer == (1 << 27)
-        // D3D12_REQ_BUFFER_RESOURCE_TEXEL_COUNT_2_TO_EXP
-        // This limit doesn't apply to a raw buffer, but only applies to
-        // typed, or structured buffer. so this could be a QC driver bug.
-        limits->v1.maxStorageBufferBindingSize = uint64_t(1)
-                                                 << D3D12_REQ_BUFFER_RESOURCE_TEXEL_COUNT_2_TO_EXP;
-    } else {
-        limits->v1.maxStorageBufferBindingSize = kAssumedMaxBufferSize;
-    }
-
     // D3D12 has no documented limit on the buffer size.
     limits->v1.maxBufferSize = kAssumedMaxBufferSize;
+    limits->v1.maxStorageBufferBindingSize = kAssumedMaxBufferSize;
 
     // 1 for SV_Position and 1 for (SV_IsFrontFace OR SV_SampleIndex).
     // See the discussions in https://github.com/gpuweb/gpuweb/issues/1962 for more details.
@@ -377,11 +368,20 @@ MaybeError PhysicalDevice::InitializeSupportedLimitsImpl(CombinedLimits* limits)
     // - maxVertexBufferArrayStride
 
     // Experimental limits for subgroups
+    // TODO(crbug.com/354751907) Move this to AdapterInfo
     limits->experimentalSubgroupLimits.minSubgroupSize = mDeviceInfo.waveLaneCountMin;
     // Currently the WaveLaneCountMax queried from D3D12 API is not reliable and the meaning is
     // unclear. Use 128 instead, which is the largest possible size. Reference:
     // https://github.com/Microsoft/DirectXShaderCompiler/wiki/Wave-Intrinsics#:~:text=UINT%20WaveLaneCountMax
     limits->experimentalSubgroupLimits.maxSubgroupSize = 128u;
+
+    if (gpu_info::IsQualcomm_ACPI(GetVendorId())) {
+        // Due to a driver and hardware limitation, Raw Buffers can only address 2^27 WORDS instead
+        // of the guaranteeed 2^31 bytes. Probably because it uses some form of texel buffer of
+        // 32bit values to implement [RW]ByteAddressBuffer.
+        limits->v1.maxStorageBufferBindingSize = sizeof(uint32_t)
+                                                 << D3D12_REQ_BUFFER_RESOURCE_TEXEL_COUNT_2_TO_EXP;
+    }
 
     return {};
 }
@@ -399,8 +399,6 @@ FeatureValidationResult PhysicalDevice::ValidateFeatureSupportedWithTogglesImpl(
             case wgpu::FeatureName::ShaderF16:
             case wgpu::FeatureName::Subgroups:
             case wgpu::FeatureName::SubgroupsF16:
-            // TODO(349125474): Remove deprecated ChromiumExperimentalSubgroups.
-            case wgpu::FeatureName::ChromiumExperimentalSubgroups:
                 return FeatureValidationResult(
                     absl::StrFormat("Feature %s requires DXC for D3D12.", feature));
             default:
@@ -478,6 +476,10 @@ MaybeError PhysicalDevice::InitializeDebugLayerFilters() {
         // get rejected and generate a debug error. Then, we request 0 to get the allowed
         // allowed alignment.
         D3D12_MESSAGE_ID_CREATERESOURCE_INVALIDALIGNMENT,
+#if D3D12_SDK_VERSION >= 612
+        // This message id for small resource alignment was introduced in SDK 10.0.26100.0.
+        D3D12_MESSAGE_ID_CREATERESOURCE_INVALIDALIGNMENT_SMALLRESOURCE,
+#endif
 
         // WebGPU allows OOB vertex buffer access and relies on D3D12's robust buffer access
         // behavior.
@@ -557,24 +559,40 @@ void PhysicalDevice::SetupBackendAdapterToggles(dawn::platform::Platform* platfo
     uint32_t deviceId = GetDeviceId();
     uint32_t vendorId = GetVendorId();
 
-    // On Intel Gen12 GPU, using shader model 6.6 will cause unexpected result when
-    // adding/subtracting I32/U32 vector/scalar with vector/scalar in constant initialized array.
-    // See https://crbug.com/tint/2189 and https://crbug.com/dawn/2470 for more information.
+    // On Intel Gen12 D3D driver < 32.0.101.5762, using shader model 6.6 will cause unexpected
+    // result when adding/subtracting I32/U32 vector/scalar with vector/scalar in constant
+    // initialized array. See https://crbug.com/tint/2189 and https://crbug.com/dawn/2470 for more
+    // information.
     if (gpu_info::IsIntelGen12HP(vendorId, deviceId) ||
         gpu_info::IsIntelGen12LP(vendorId, deviceId)) {
-        adapterToggles->Default(Toggle::D3D12DontUseShaderModel66OrHigher, true);
+        if (gpu_info::CompareWindowsDriverVersion(vendorId, GetDriverVersion(),
+                                                  {32, 0, 101, 5762}) == -1) {
+            adapterToggles->Default(Toggle::D3D12DontUseShaderModel66OrHigher, true);
+        }
     }
 
     // Workaround for textureDimensions() produces incorrect results with shader model 6.6 on Intel
-    // D3D driver > 27.20.100.8935 and < 27.20.100.9684 on Intel Gen9, Gen9.5 and Gen11 GPUs.
+    // D3D driver > 27.20.100.8935 and < 27.20.100.9684 on Intel Gen9 and Gen9.5 GPUs.
     // See https://crbug.com/dawn/2448 for more information.
-    if (gpu_info::IsIntelGen9(vendorId, deviceId) || gpu_info::IsIntelGen11(vendorId, deviceId)) {
+    if (gpu_info::IsIntelGen9(vendorId, deviceId)) {
         if (gpu_info::CompareWindowsDriverVersion(vendorId, GetDriverVersion(),
                                                   {27, 20, 100, 8935}) == 1 &&
             gpu_info::CompareWindowsDriverVersion(vendorId, GetDriverVersion(),
                                                   {27, 20, 100, 9684}) == -1) {
             adapterToggles->ForceSet(Toggle::D3D12DontUseShaderModel66OrHigher, true);
         }
+    }
+
+    // On Intel Gen11 D3D12 GPUs using shader model 6.6 causes many unexpected issues.
+    // See https://crbug.com/374606634 for more information.
+    if (gpu_info::IsIntelGen11(vendorId, deviceId)) {
+        adapterToggles->ForceSet(Toggle::D3D12DontUseShaderModel66OrHigher, true);
+    }
+
+    // On Intel Gen12LP fragment shader is possible to run with wave lane count of 8
+    // while driver reporting WaveLaneCountMin being 16.
+    if (gpu_info::IsIntelGen12LP(vendorId, deviceId)) {
+        adapterToggles->Default(Toggle::D3D12RelaxMinSubgroupSizeTo8, true);
     }
 }
 
@@ -630,6 +648,14 @@ void PhysicalDevice::SetupBackendDeviceToggles(dawn::platform::Platform* platfor
     }
     deviceToggles->Default(Toggle::D3D12CreateNotZeroedHeap,
                            GetDeviceInfo().supportsHeapFlagCreateNotZeroed);
+
+    // By default allow relaxed row pitch and offset in buffer-texture copies when possible,
+    // otherwise we should never enable this toggle.
+    if (!GetDeviceInfo().supportsUnrestrictedBufferTextureCopyPitch) {
+        deviceToggles->ForceSet(Toggle::D3D12RelaxBufferTextureCopyPitchAndOffsetAlignment, false);
+    }
+    deviceToggles->Default(Toggle::D3D12RelaxBufferTextureCopyPitchAndOffsetAlignment,
+                           GetDeviceInfo().supportsUnrestrictedBufferTextureCopyPitch);
 
     // Native support of packed 4x8 integer dot product required shader model 6.4 or higher, and
     // DXC 1.4 or higher.
@@ -720,6 +746,12 @@ void PhysicalDevice::SetupBackendDeviceToggles(dawn::platform::Platform* platfor
         }
     }
 
+    // B2T copy failed with stencil8 format on Intel ACM/MTL/ARL GPUs. See
+    // https://issues.chromium.org/issues/368085621 for more information.
+    if (gpu_info::IsAlchemist(deviceId) || gpu_info::IsMeteorlakeOrArrowlake(deviceId)) {
+        deviceToggles->Default(Toggle::UseBlitForBufferToStencilTextureCopy, true);
+    }
+
     // Currently these workarounds are needed on Intel Gen9.5 and Gen11 GPUs, as well as
     // AMD GPUS.
     // See http://crbug.com/1237175, http://crbug.com/dawn/1628, and http://crbug.com/dawn/2032
@@ -786,6 +818,10 @@ void PhysicalDevice::SetupBackendDeviceToggles(dawn::platform::Platform* platfor
         deviceToggles->Default(Toggle::D3D12ForceStencilComponentReplicateSwizzle, true);
         deviceToggles->Default(Toggle::D3D12ExpandShaderResourceStateTransitionsToCopySource, true);
     }
+
+    // Use the Tint IR backend by default if the corresponding platform feature is enabled.
+    deviceToggles->Default(Toggle::UseTintIR,
+                           platform->IsFeatureEnabled(platform::Features::kWebGPUUseTintIR));
 }
 
 ResultOrError<Ref<DeviceBase>> PhysicalDevice::CreateDeviceImpl(
@@ -808,8 +844,15 @@ MaybeError PhysicalDevice::ResetInternalDeviceForTestingImpl() {
     return {};
 }
 
-void PhysicalDevice::PopulateBackendProperties(UnpackedPtr<AdapterProperties>& properties) const {
-    if (auto* memoryHeapProperties = properties.Get<AdapterPropertiesMemoryHeaps>()) {
+void PhysicalDevice::PopulateBackendProperties(UnpackedPtr<AdapterInfo>& info) const {
+    if (auto* subgroupProperties = info.Get<AdapterPropertiesSubgroups>()) {
+        subgroupProperties->subgroupMinSize = mDeviceInfo.waveLaneCountMin;
+        // Currently the WaveLaneCountMax queried from D3D12 API is not reliable and the meaning is
+        // unclear. Use 128 instead, which is the largest possible size. Reference:
+        // https://github.com/Microsoft/DirectXShaderCompiler/wiki/Wave-Intrinsics#:~:text=UINT%20WaveLaneCountMax
+        subgroupProperties->subgroupMaxSize = 128u;
+    }
+    if (auto* memoryHeapProperties = info.Get<AdapterPropertiesMemoryHeaps>()) {
         // https://microsoft.github.io/DirectX-Specs/d3d/D3D12GPUUploadHeaps.html describes
         // the properties of D3D12 Default/Upload/Readback heaps.
         if (mDeviceInfo.isUMA) {
@@ -843,7 +886,7 @@ void PhysicalDevice::PopulateBackendProperties(UnpackedPtr<AdapterProperties>& p
                 wgpu::HeapProperty::HostUncached | wgpu::HeapProperty::HostCached;
         }
     }
-    if (auto* d3dProperties = properties.Get<AdapterPropertiesD3D>()) {
+    if (auto* d3dProperties = info.Get<AdapterPropertiesD3D>()) {
         // Report highest supported shader model version, instead of actual applied version.
         d3dProperties->shaderModel = GetDeviceInfo().highestSupportedShaderModel;
     }

@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 struct Inner {
   float16_t scalar_f16;
@@ -55,5 +55,7 @@ void main() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x000001AB96704F90(2,3-11): error X3000: unrecognized identifier 'float16_t'
+<scrubbed_path>(2,3-11): error X3000: unrecognized identifier 'float16_t'
 
+
+tint executable returned error: exit status 1

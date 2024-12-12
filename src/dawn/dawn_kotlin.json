@@ -36,7 +36,6 @@
         "bool": "jboolean",
         "double": "jdouble",
         "float": "jfloat",
-        "double": "jdouble",
         "size_t": "jlong",
         "int32_t": "jint",
         "uint16_t": "jshort",
@@ -45,5 +44,19 @@
         "void *": "jobject",
         "void const *": "jobject",
         "void": "void"
+    },
+
+    "jni_signatures" : {
+        "bool": "Z",
+        "double": "D",
+        "float": "F",
+        "int16_t": "S",
+        "int32_t": "I",
+        "int64_t": "J",
+        "size_t": "J",
+        "uint16_t": "S",
+        "uint32_t": "I",
+        "uint64_t": "J",
+        "void *": "J"
     }
 }

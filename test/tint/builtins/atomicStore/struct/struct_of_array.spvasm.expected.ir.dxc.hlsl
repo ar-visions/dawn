@@ -13,18 +13,26 @@ static uint local_invocation_index_1 = 0u;
 groupshared S_atomic wg;
 void compute_main_inner(uint local_invocation_index_2) {
   uint idx = 0u;
-  wg.x = 0;
+  wg.x = int(0);
   wg.y = 0u;
   idx = local_invocation_index_2;
   {
+    uint2 tint_loop_idx = (0u).xx;
     while(true) {
+      if (all((tint_loop_idx == (4294967295u).xx))) {
+        break;
+      }
       if (!((idx < 10u))) {
         break;
       }
       uint x_35 = idx;
       uint v = 0u;
-      InterlockedExchange(wg.a[x_35], 0u, v);
+      InterlockedExchange(wg.a[min(x_35, 9u)], 0u, v);
       {
+        uint tint_low_inc = (tint_loop_idx.x + 1u);
+        tint_loop_idx.x = tint_low_inc;
+        uint tint_carry = uint((tint_low_inc == 0u));
+        tint_loop_idx.y = (tint_loop_idx.y + tint_carry);
         idx = (idx + 1u);
       }
       continue;
@@ -32,7 +40,7 @@ void compute_main_inner(uint local_invocation_index_2) {
   }
   GroupMemoryBarrierWithGroupSync();
   uint v_1 = 0u;
-  InterlockedExchange(wg.a[4], 1u, v_1);
+  InterlockedExchange(wg.a[4u], 1u, v_1);
 }
 
 void compute_main_1() {
@@ -41,8 +49,8 @@ void compute_main_1() {
 }
 
 void compute_main_inner_1(uint local_invocation_index_1_param) {
-  if ((local_invocation_index_1_param == 0u)) {
-    wg.x = 0;
+  if ((local_invocation_index_1_param < 1u)) {
+    wg.x = int(0);
     wg.y = 0u;
   }
   {

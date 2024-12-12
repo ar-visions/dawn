@@ -120,7 +120,7 @@ ResultOrError<Ref<RenderPipelineBase>> GetOrCreateExpandMultisamplePipeline(
     }
 
     // vertex shader's source.
-    ShaderModuleWGSLDescriptor wgslDesc = {};
+    ShaderSourceWGSL wgslDesc = {};
     ShaderModuleDescriptor shaderModuleDesc = {};
     shaderModuleDesc.nextInChain = &wgslDesc;
     wgslDesc.code = kBlitToColorVS;
@@ -171,7 +171,7 @@ ResultOrError<Ref<RenderPipelineBase>> GetOrCreateExpandMultisamplePipeline(
     DepthStencilState depthStencilState = {};
     if (pipelineKey.depthStencilFormat != wgpu::TextureFormat::Undefined) {
         depthStencilState.format = pipelineKey.depthStencilFormat;
-        depthStencilState.depthWriteEnabled = false;
+        depthStencilState.depthWriteEnabled = wgpu::OptionalBool::False;
         depthStencilState.depthCompare = wgpu::CompareFunction::Always;
 
         renderPipelineDesc.depthStencil = &depthStencilState;
@@ -223,7 +223,7 @@ ResultOrError<Ref<RenderPipelineBase>> GetOrCreateResolveMultisamplePipeline(
     }
 
     // vertex shader's source.
-    ShaderModuleWGSLDescriptor wgslDesc = {};
+    ShaderSourceWGSL wgslDesc = {};
     ShaderModuleDescriptor shaderModuleDesc = {};
     shaderModuleDesc.nextInChain = &wgslDesc;
     wgslDesc.code = kBlitToColorVS;

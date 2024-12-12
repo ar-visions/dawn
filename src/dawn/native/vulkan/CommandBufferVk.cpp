@@ -39,7 +39,7 @@
 #include "dawn/native/RenderBundle.h"
 #include "dawn/native/vulkan/BindGroupVk.h"
 #include "dawn/native/vulkan/BufferVk.h"
-#include "dawn/native/vulkan/CommandRecordingContext.h"
+#include "dawn/native/vulkan/CommandRecordingContextVk.h"
 #include "dawn/native/vulkan/ComputePipelineVk.h"
 #include "dawn/native/vulkan/DeviceVk.h"
 #include "dawn/native/vulkan/FencedDeleter.h"
@@ -154,6 +154,19 @@ class DescriptorSetTracker : public BindGroupTrackerBase<true, uint32_t> {
   public:
     DescriptorSetTracker() = default;
 
+    bool AreLayoutsCompatible() override {
+        return mPipelineLayout == mLastAppliedPipelineLayout &&
+               mLastAppliedInternalImmediateDataSize == mInternalImmediateDataSize;
+    }
+
+    template <typename VkPipelineType>
+    void OnSetPipeline(VkPipelineType* pipeline) {
+        BindGroupTrackerBase::OnSetPipeline(pipeline);
+
+        mVkLayout = pipeline->GetVkLayout();
+        mInternalImmediateDataSize = pipeline->GetInternalImmediateDataSize();
+    }
+
     void Apply(Device* device,
                CommandRecordingContext* recordingContext,
                VkPipelineBindPoint bindPoint) {
@@ -163,12 +176,20 @@ class DescriptorSetTracker : public BindGroupTrackerBase<true, uint32_t> {
             uint32_t count = static_cast<uint32_t>(mDynamicOffsets[dirtyIndex].size());
             const uint32_t* dynamicOffset =
                 count > 0 ? mDynamicOffsets[dirtyIndex].data() : nullptr;
-            device->fn.CmdBindDescriptorSets(
-                recordingContext->commandBuffer, bindPoint, ToBackend(mPipelineLayout)->GetHandle(),
-                static_cast<uint32_t>(dirtyIndex), 1, &*set, count, dynamicOffset);
+            device->fn.CmdBindDescriptorSets(recordingContext->commandBuffer, bindPoint, mVkLayout,
+                                             static_cast<uint32_t>(dirtyIndex), 1, &*set, count,
+                                             dynamicOffset);
         }
+
+        // Update PipelineLayout
         AfterApply();
+
+        mLastAppliedInternalImmediateDataSize = mInternalImmediateDataSize;
     }
+
+    RAW_PTR_EXCLUSION VkPipelineLayout mVkLayout;
+    uint32_t mLastAppliedInternalImmediateDataSize = 0;
+    uint32_t mInternalImmediateDataSize = 0;
 };
 
 // Records the necessary barriers for a synchronization scope using the resource usage
@@ -185,7 +206,6 @@ MaybeError TransitionAndClearForSyncScope(Device* device,
                                               VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT;
 
     struct Barriers {
-        std::vector<VkBufferMemoryBarrier> bufferBarriers;
         std::vector<VkImageMemoryBarrier> imageBarriers;
         VkPipelineStageFlags srcStages = 0;
         VkPipelineStageFlags dstStages = 0;
@@ -194,28 +214,24 @@ MaybeError TransitionAndClearForSyncScope(Device* device,
     Barriers vertexBarriers;
     Barriers nonVertexBarriers;
 
-    auto MergeBufferBarrier = [](Barriers* barriers, VkPipelineStageFlags srcStages,
-                                 VkPipelineStageFlags dstStages,
-                                 const VkBufferMemoryBarrier& bufferBarrier) {
-        barriers->srcStages |= srcStages;
-        barriers->dstStages |= dstStages;
-        barriers->bufferBarriers.push_back(bufferBarrier);
-    };
-
     for (size_t i = 0; i < scope.buffers.size(); ++i) {
         Buffer* buffer = ToBackend(scope.buffers[i]);
         buffer->EnsureDataInitialized(recordingContext);
 
-        VkPipelineStageFlags srcStages = 0;
-        VkPipelineStageFlags dstStages = 0;
+        // `kIndirectBufferForFrontendValidation` is only for the front-end validation and should be
+        // totally ignored in the backend resource tracking because:
+        // 1. When old usage contains kIndirectBufferForFrontendValidation while new usage just
+        //    removes kIndirectBufferForFrontendValidation, the barrier is actually unnecessary.
+        // 2. When usage == kIndirectBufferForFrontendValidation, dstStages would be NONE, which is
+        //    not allowed by Vulkan SPEC unless synchronization2 is enabled.
+        // We remove `kIndirectBufferForFrontendValidation` in this function instead of in the
+        // function `BufferVk::TrackUsageAndGetResourceBarrier()` because on Vulkan backend this
+        // is the only place that we need to handle `kIndirectBufferForFrontendValidation`.
+        wgpu::BufferUsage usage =
+            scope.bufferSyncInfos[i].usage & (~kIndirectBufferForFrontendValidation);
 
-        VkBufferMemoryBarrier bufferBarrier;
-        if (buffer->TrackUsageAndGetResourceBarrier(
-                recordingContext, scope.bufferSyncInfos[i].usage,
-                scope.bufferSyncInfos[i].shaderStages, &bufferBarrier, &srcStages, &dstStages)) {
-            MergeBufferBarrier((dstStages & vertexStages) ? &vertexBarriers : &nonVertexBarriers,
-                               srcStages, dstStages, bufferBarrier);
-        }
+        buffer->TrackUsageAndGetResourceBarrier(recordingContext, usage,
+                                                scope.bufferSyncInfos[i].shaderStages);
     }
 
     auto MergeImageBarriers = [](Barriers* barriers, VkPipelineStageFlags srcStages,
@@ -256,13 +272,13 @@ MaybeError TransitionAndClearForSyncScope(Device* device,
     }
 
     for (const Barriers& barriers : {vertexBarriers, nonVertexBarriers}) {
-        if (!barriers.bufferBarriers.empty() || !barriers.imageBarriers.empty()) {
+        if (!barriers.imageBarriers.empty()) {
             device->fn.CmdPipelineBarrier(
                 recordingContext->commandBuffer, barriers.srcStages, barriers.dstStages, 0, 0,
-                nullptr, barriers.bufferBarriers.size(), barriers.bufferBarriers.data(),
-                barriers.imageBarriers.size(), barriers.imageBarriers.data());
+                nullptr, 0, nullptr, barriers.imageBarriers.size(), barriers.imageBarriers.data());
         }
     }
+    recordingContext->EmitBufferBarriers(device);
 
     return {};
 }
@@ -663,11 +679,13 @@ MaybeError CommandBuffer::RecordCommands(CommandRecordingContext* recordingConte
                     DAWN_TRY(ToBackend(dst.texture)
                                  ->EnsureSubresourceContentInitialized(recordingContext, range));
                 }
+
                 ToBackend(src.buffer)
                     ->TransitionUsageNow(recordingContext, wgpu::BufferUsage::CopySrc);
                 ToBackend(dst.texture)
                     ->TransitionUsageNow(recordingContext, wgpu::TextureUsage::CopyDst,
                                          wgpu::ShaderStage::None, range);
+
                 VkBuffer srcBuffer = ToBackend(src.buffer)->GetHandle();
                 VkImage dstImage = ToBackend(dst.texture)->GetHandle();
 
@@ -1064,7 +1082,7 @@ MaybeError CommandBuffer::RecordComputePass(CommandRecordingContext* recordingCo
 
                 device->fn.CmdBindPipeline(commands, VK_PIPELINE_BIND_POINT_COMPUTE,
                                            pipeline->GetHandle());
-                descriptorSets.OnSetPipeline(pipeline);
+                descriptorSets.OnSetPipeline<ComputePipeline>(pipeline);
                 break;
             }
 
@@ -1199,9 +1217,10 @@ MaybeError CommandBuffer::RecordRenderPass(CommandRecordingContext* recordingCon
         if (!clampFragDepthArgsDirty || lastPipeline == nullptr) {
             return;
         }
-        device->fn.CmdPushConstants(commands, ToBackend(lastPipeline->GetLayout())->GetHandle(),
-                                    VK_SHADER_STAGE_FRAGMENT_BIT, kClampFragDepthArgsOffset,
-                                    kClampFragDepthArgsSize, &clampFragDepthArgs);
+        device->fn.CmdPushConstants(
+            commands, lastPipeline->GetVkLayout(),
+            ToBackend(lastPipeline->GetLayout())->GetImmediateDataRangeStage(),
+            kClampFragDepthArgsOffset, kClampFragDepthArgsSize, &clampFragDepthArgs);
         clampFragDepthArgsDirty = false;
     };
 
@@ -1244,6 +1263,57 @@ MaybeError CommandBuffer::RecordRenderPass(CommandRecordingContext* recordingCon
                 device->fn.CmdDrawIndexedIndirect(commands, buffer->GetHandle(),
                                                   static_cast<VkDeviceSize>(draw->indirectOffset),
                                                   1, 0);
+                break;
+            }
+
+            case Command::MultiDrawIndirect: {
+                MultiDrawIndirectCmd* cmd = iter->NextCommand<MultiDrawIndirectCmd>();
+
+                Buffer* indirectBuffer = ToBackend(cmd->indirectBuffer.Get());
+                DAWN_ASSERT(indirectBuffer != nullptr);
+
+                // Count buffer is optional
+                Buffer* countBuffer = ToBackend(cmd->drawCountBuffer.Get());
+
+                descriptorSets.Apply(device, recordingContext, VK_PIPELINE_BIND_POINT_GRAPHICS);
+
+                if (countBuffer == nullptr) {
+                    device->fn.CmdDrawIndirect(commands, indirectBuffer->GetHandle(),
+                                               static_cast<VkDeviceSize>(cmd->indirectOffset),
+                                               cmd->maxDrawCount, kDrawIndirectSize);
+                } else {
+                    device->fn.CmdDrawIndirectCountKHR(
+                        commands, indirectBuffer->GetHandle(),
+                        static_cast<VkDeviceSize>(cmd->indirectOffset), countBuffer->GetHandle(),
+                        static_cast<VkDeviceSize>(cmd->drawCountOffset), cmd->maxDrawCount,
+                        kDrawIndirectSize);
+                }
+                break;
+            }
+            case Command::MultiDrawIndexedIndirect: {
+                MultiDrawIndexedIndirectCmd* cmd = iter->NextCommand<MultiDrawIndexedIndirectCmd>();
+
+                Buffer* indirectBuffer = ToBackend(cmd->indirectBuffer.Get());
+                DAWN_ASSERT(indirectBuffer != nullptr);
+
+                // Count buffer is optional
+                Buffer* countBuffer = ToBackend(cmd->drawCountBuffer.Get());
+
+                descriptorSets.Apply(device, recordingContext, VK_PIPELINE_BIND_POINT_GRAPHICS);
+
+                if (countBuffer == nullptr) {
+                    device->fn.CmdDrawIndexedIndirect(
+                        commands, indirectBuffer->GetHandle(),
+                        static_cast<VkDeviceSize>(cmd->indirectOffset), cmd->maxDrawCount,
+                        kDrawIndexedIndirectSize);
+                } else {
+                    device->fn.CmdDrawIndexedIndirectCountKHR(
+                        commands, indirectBuffer->GetHandle(),
+                        static_cast<VkDeviceSize>(cmd->indirectOffset), countBuffer->GetHandle(),
+                        static_cast<VkDeviceSize>(cmd->drawCountOffset), cmd->maxDrawCount,
+                        kDrawIndexedIndirectSize);
+                }
+
                 break;
             }
 
@@ -1327,7 +1397,7 @@ MaybeError CommandBuffer::RecordRenderPass(CommandRecordingContext* recordingCon
                                            pipeline->GetHandle());
                 lastPipeline = pipeline;
 
-                descriptorSets.OnSetPipeline(pipeline);
+                descriptorSets.OnSetPipeline<RenderPipeline>(pipeline);
 
                 // Apply the deferred min/maxDepth push constants update if needed.
                 ApplyClampFragDepthArgs();

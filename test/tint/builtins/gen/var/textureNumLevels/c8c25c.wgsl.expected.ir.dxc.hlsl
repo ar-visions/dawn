@@ -1,3 +1,41 @@
+//
+// fragment_main
+//
+
+RWByteAddressBuffer prevent_dce : register(u0);
+TextureCube arg_0 : register(t0, space1);
+uint textureNumLevels_c8c25c() {
+  uint3 v = (0u).xxx;
+  arg_0.GetDimensions(0u, v.x, v.y, v.z);
+  uint res = v.z;
+  return res;
+}
+
+void fragment_main() {
+  prevent_dce.Store(0u, textureNumLevels_c8c25c());
+}
+
+//
+// compute_main
+//
+
+RWByteAddressBuffer prevent_dce : register(u0);
+TextureCube arg_0 : register(t0, space1);
+uint textureNumLevels_c8c25c() {
+  uint3 v = (0u).xxx;
+  arg_0.GetDimensions(0u, v.x, v.y, v.z);
+  uint res = v.z;
+  return res;
+}
+
+[numthreads(1, 1, 1)]
+void compute_main() {
+  prevent_dce.Store(0u, textureNumLevels_c8c25c());
+}
+
+//
+// vertex_main
+//
 struct VertexOutput {
   float4 pos;
   uint prevent_dce;
@@ -9,22 +47,12 @@ struct vertex_main_outputs {
 };
 
 
-RWByteAddressBuffer prevent_dce : register(u0);
 TextureCube arg_0 : register(t0, space1);
 uint textureNumLevels_c8c25c() {
   uint3 v = (0u).xxx;
-  arg_0.GetDimensions(0u, v[0u], v[1u], v[2u]);
+  arg_0.GetDimensions(0u, v.x, v.y, v.z);
   uint res = v.z;
   return res;
-}
-
-void fragment_main() {
-  prevent_dce.Store(0u, textureNumLevels_c8c25c());
-}
-
-[numthreads(1, 1, 1)]
-void compute_main() {
-  prevent_dce.Store(0u, textureNumLevels_c8c25c());
 }
 
 VertexOutput vertex_main_inner() {
@@ -37,9 +65,7 @@ VertexOutput vertex_main_inner() {
 
 vertex_main_outputs vertex_main() {
   VertexOutput v_2 = vertex_main_inner();
-  VertexOutput v_3 = v_2;
-  VertexOutput v_4 = v_2;
-  vertex_main_outputs v_5 = {v_4.prevent_dce, v_3.pos};
-  return v_5;
+  vertex_main_outputs v_3 = {v_2.prevent_dce, v_2.pos};
+  return v_3;
 }
 

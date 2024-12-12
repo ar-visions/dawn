@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 
 RWByteAddressBuffer U : register(u0);
@@ -14,5 +14,7 @@ void unused_entry_point() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x0000020E68E2F8D0(4,3-9): error X3018: invalid subscript 'Store'
+<scrubbed_path>(4,3-9): error X3018: invalid subscript 'Store'
 
+
+tint executable returned error: exit status 1

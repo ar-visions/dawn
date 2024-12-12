@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 
 static float u = 1.0f;
@@ -11,6 +11,8 @@ void unused_entry_point() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x000002140D6BDB20(4,3-11): error X3000: unrecognized identifier 'float16_t'
-c:\src\dawn\Shader@0x000002140D6BDB20(4,13): error X3000: unrecognized identifier 'v'
+<scrubbed_path>(4,3-11): error X3000: unrecognized identifier 'float16_t'
+<scrubbed_path>(4,13): error X3000: unrecognized identifier 'v'
 
+
+tint executable returned error: exit status 1

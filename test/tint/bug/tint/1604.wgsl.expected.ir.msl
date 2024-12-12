@@ -11,7 +11,11 @@ kernel void tint_symbol(const constant int* x [[buffer(0)]]) {
     case 0:
     {
       {
+        uint2 tint_loop_idx = 0u;
         while(true) {
+          if (all((tint_loop_idx == uint2(4294967295u)))) {
+            break;
+          }
           return;
         }
       }

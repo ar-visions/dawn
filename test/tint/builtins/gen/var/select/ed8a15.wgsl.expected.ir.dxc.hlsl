@@ -1,3 +1,41 @@
+//
+// fragment_main
+//
+
+RWByteAddressBuffer prevent_dce : register(u0);
+int select_ed8a15() {
+  int arg_0 = int(1);
+  int arg_1 = int(1);
+  bool arg_2 = true;
+  int res = ((arg_2) ? (arg_1) : (arg_0));
+  return res;
+}
+
+void fragment_main() {
+  prevent_dce.Store(0u, asuint(select_ed8a15()));
+}
+
+//
+// compute_main
+//
+
+RWByteAddressBuffer prevent_dce : register(u0);
+int select_ed8a15() {
+  int arg_0 = int(1);
+  int arg_1 = int(1);
+  bool arg_2 = true;
+  int res = ((arg_2) ? (arg_1) : (arg_0));
+  return res;
+}
+
+[numthreads(1, 1, 1)]
+void compute_main() {
+  prevent_dce.Store(0u, asuint(select_ed8a15()));
+}
+
+//
+// vertex_main
+//
 struct VertexOutput {
   float4 pos;
   int prevent_dce;
@@ -9,22 +47,12 @@ struct vertex_main_outputs {
 };
 
 
-RWByteAddressBuffer prevent_dce : register(u0);
 int select_ed8a15() {
-  int arg_0 = 1;
-  int arg_1 = 1;
+  int arg_0 = int(1);
+  int arg_1 = int(1);
   bool arg_2 = true;
   int res = ((arg_2) ? (arg_1) : (arg_0));
   return res;
-}
-
-void fragment_main() {
-  prevent_dce.Store(0u, asuint(select_ed8a15()));
-}
-
-[numthreads(1, 1, 1)]
-void compute_main() {
-  prevent_dce.Store(0u, asuint(select_ed8a15()));
 }
 
 VertexOutput vertex_main_inner() {
@@ -37,9 +65,7 @@ VertexOutput vertex_main_inner() {
 
 vertex_main_outputs vertex_main() {
   VertexOutput v_1 = vertex_main_inner();
-  VertexOutput v_2 = v_1;
-  VertexOutput v_3 = v_1;
-  vertex_main_outputs v_4 = {v_3.prevent_dce, v_2.pos};
-  return v_4;
+  vertex_main_outputs v_2 = {v_1.prevent_dce, v_1.pos};
+  return v_2;
 }
 

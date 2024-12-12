@@ -3,7 +3,7 @@ void set_vector_element(inout uint4 vec, int idx, uint val) {
 }
 
 uint4 tint_ftou(float4 v) {
-  return ((v < (4294967040.0f).xxxx) ? ((v < (0.0f).xxxx) ? (0u).xxxx : uint4(v)) : (4294967295u).xxxx);
+  return ((v <= (4294967040.0f).xxxx) ? ((v < (0.0f).xxxx) ? (0u).xxxx : uint4(v)) : (4294967295u).xxxx);
 }
 
 Texture2D<float4> src : register(t0);
@@ -38,19 +38,25 @@ void main_inner(uint3 GlobalInvocationID) {
   {
     for(uint i = 0u; (i < uniforms[0].w); i = (i + 1u)) {
       uint tint_symbol_1 = i;
-      set_vector_element(srcColorBits, tint_symbol_1, ConvertToFp16FloatValue(srcColor[i]));
+      set_vector_element(srcColorBits, min(tint_symbol_1, 3u), ConvertToFp16FloatValue(srcColor[min(i, 3u)]));
       bool tint_tmp_1 = success;
       if (tint_tmp_1) {
-        tint_tmp_1 = (srcColorBits[i] == dstColorBits[i]);
+        tint_tmp_1 = (srcColorBits[min(i, 3u)] == dstColorBits[min(i, 3u)]);
       }
       success = (tint_tmp_1);
     }
   }
   uint outputIndex = ((GlobalInvocationID.y * uint(size.x)) + GlobalInvocationID.x);
   if (success) {
-    output.Store((4u * outputIndex), asuint(1u));
+    uint tint_symbol_5 = 0u;
+    output.GetDimensions(tint_symbol_5);
+    uint tint_symbol_6 = ((tint_symbol_5 - 0u) / 4u);
+    output.Store((4u * min(outputIndex, (tint_symbol_6 - 1u))), asuint(1u));
   } else {
-    output.Store((4u * outputIndex), asuint(0u));
+    uint tint_symbol_7 = 0u;
+    output.GetDimensions(tint_symbol_7);
+    uint tint_symbol_8 = ((tint_symbol_7 - 0u) / 4u);
+    output.Store((4u * min(outputIndex, (tint_symbol_8 - 1u))), asuint(0u));
   }
 }
 

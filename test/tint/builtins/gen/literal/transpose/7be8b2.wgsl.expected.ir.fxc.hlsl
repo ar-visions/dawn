@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 struct VertexOutput {
   float4 pos;
@@ -14,7 +14,7 @@ struct vertex_main_outputs {
 RWByteAddressBuffer prevent_dce : register(u0);
 int transpose_7be8b2() {
   matrix<float16_t, 2, 2> res = matrix<float16_t, 2, 2>((float16_t(1.0h)).xx, (float16_t(1.0h)).xx);
-  return (((res[0].x == float16_t(0.0h))) ? (1) : (0));
+  return (((res[int(0)].x == float16_t(0.0h))) ? (int(1)) : (int(0)));
 }
 
 void fragment_main() {
@@ -43,6 +43,8 @@ vertex_main_outputs vertex_main() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x000001DF79DFDDA0(14,10-18): error X3000: syntax error: unexpected token 'float16_t'
-c:\src\dawn\Shader@0x000001DF79DFDDA0(15,13-15): error X3004: undeclared identifier 'res'
+<scrubbed_path>(14,10-18): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(15,13-15): error X3004: undeclared identifier 'res'
 
+
+tint executable returned error: exit status 1

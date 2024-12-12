@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 
 static uint var_1 = 0u;
@@ -23,5 +23,7 @@ void main() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x000002259BAB0390(5,11-14): error X3696: infinite loop detected - loop never exits
+<scrubbed_path>(5,11-14): error X3696: infinite loop detected - loop never exits
 
+
+tint executable returned error: exit status 1

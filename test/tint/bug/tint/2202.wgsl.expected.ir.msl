@@ -7,9 +7,17 @@ using namespace metal;
 
 kernel void tint_symbol() {
   {
+    uint2 tint_loop_idx = 0u;
     while(true) {
+      if (all((tint_loop_idx == uint2(4294967295u)))) {
+        break;
+      }
       {
+        uint2 tint_loop_idx_1 = 0u;
         while(true) {
+          if (all((tint_loop_idx_1 == uint2(4294967295u)))) {
+            break;
+          }
           return;
         }
       }

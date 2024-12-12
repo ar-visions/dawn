@@ -68,7 +68,7 @@ const constant::Value* Manager::Composite(const core::type::Type* type,
     bool all_equal = true;
     auto* first = elements.Front();
     for (auto* el : elements) {
-        if (TINT_UNLIKELY(!el)) {
+        if (DAWN_UNLIKELY(!el)) {
             return nullptr;
         }
         if (!any_zero && el->AnyZero()) {
@@ -133,7 +133,7 @@ const Value* Manager::Zero(const core::type::Type* type) {
     return Switch(
         type,  //
         [&](const core::type::Vector* v) -> const Value* {
-            auto* zero_el = Zero(v->type());
+            auto* zero_el = Zero(v->Type());
             return Splat(type, zero_el);
         },
         [&](const core::type::Matrix* m) -> const Value* {

@@ -2,7 +2,7 @@
 using namespace metal;
 
 struct Uniforms {
-  uint i;
+  /* 0x0000 */ uint i;
 };
 
 struct tint_module_vars_struct {
@@ -34,15 +34,23 @@ kernel void tint_symbol(const constant Uniforms* uniforms [[buffer(0)]]) {
   InnerS v = {};
   OuterS s1 = {};
   {
+    uint2 tint_loop_idx = 0u;
     int i = 0;
     while(true) {
+      if (all((tint_loop_idx == uint2(4294967295u)))) {
+        break;
+      }
       if ((i < 4)) {
       } else {
         break;
       }
-      i = (i + 1);
+      i = as_type<int>((as_type<uint>(i) + as_type<uint>(1)));
       {
-        s1.a1[(*tint_module_vars.uniforms).i] = v;
+        uint const tint_low_inc = (tint_loop_idx.x + 1u);
+        tint_loop_idx.x = tint_low_inc;
+        uint const tint_carry = uint((tint_low_inc == 0u));
+        tint_loop_idx.y = (tint_loop_idx.y + tint_carry);
+        s1.a1[min((*tint_module_vars.uniforms).i, 7u)] = v;
       }
       continue;
     }

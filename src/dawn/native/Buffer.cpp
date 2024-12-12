@@ -37,6 +37,7 @@
 #include "absl/strings/str_format.h"
 #include "dawn/common/Alloc.h"
 #include "dawn/common/Assert.h"
+#include "dawn/common/StringViewUtils.h"
 #include "dawn/native/Adapter.h"
 #include "dawn/native/CallbackTaskManager.h"
 #include "dawn/native/ChainUtils.h"
@@ -316,9 +317,14 @@ struct BufferBase::MapAsyncEvent2 final : public BufferBase::MapAsyncEvent {
     // Create an event that's ready at creation (for errors, etc.)
     MapAsyncEvent2(DeviceBase* device,
                    const WGPUBufferMapCallbackInfo2& callbackInfo,
-                   const std::string& message)
+                   const std::string& message,
+                   WGPUBufferMapAsyncStatus status)
         : MapAsyncEvent(static_cast<wgpu::CallbackMode>(callbackInfo.mode)),
-          mBufferOrError(BufferErrorData{WGPUMapAsyncStatus_Error, message}),
+          mBufferOrError(BufferErrorData{
+              status == WGPUBufferMapAsyncStatus_ValidationError ? WGPUMapAsyncStatus_Error
+              : status == WGPUBufferMapAsyncStatus_DeviceLost    ? WGPUMapAsyncStatus_Aborted
+                                                                 : WGPUMapAsyncStatus_Unknown,
+              message}),
           mCallback(callbackInfo.callback),
           mUserdata1(callbackInfo.userdata1),
           mUserdata2(callbackInfo.userdata2) {
@@ -340,8 +346,8 @@ struct BufferBase::MapAsyncEvent2 final : public BufferBase::MapAsyncEvent {
 
         if (completionType == EventCompletionType::Shutdown) {
             mCallback(WGPUMapAsyncStatus_InstanceDropped,
-                      "A valid external Instance reference no longer exists.", userdata1,
-                      userdata2);
+                      ToOutputStringView("A valid external Instance reference no longer exists."),
+                      userdata1, userdata2);
             return;
         }
 
@@ -368,10 +374,10 @@ struct BufferBase::MapAsyncEvent2 final : public BufferBase::MapAsyncEvent {
         });
         if (error) {
             DAWN_ASSERT(!pendingErrorData.message.empty());
-            mCallback(pendingErrorData.status, pendingErrorData.message.c_str(), userdata1,
-                      userdata2);
+            mCallback(pendingErrorData.status, ToOutputStringView(pendingErrorData.message),
+                      userdata1, userdata2);
         } else {
-            mCallback(WGPUMapAsyncStatus_Success, nullptr, userdata1, userdata2);
+            mCallback(WGPUMapAsyncStatus_Success, kEmptyOutputStringView, userdata1, userdata2);
         }
     }
 
@@ -455,9 +461,13 @@ ResultOrError<UnpackedPtr<BufferDescriptor>> ValidateBufferDescriptor(
                     "Buffer is mapped at creation but its size (%u) is not a multiple of 4.",
                     descriptor->size);
 
-    DAWN_INVALID_IF(descriptor->size > device->GetLimits().v1.maxBufferSize,
-                    "Buffer size (%u) exceeds the max buffer size limit (%u).", descriptor->size,
-                    device->GetLimits().v1.maxBufferSize);
+    uint64_t maxBufferSize = device->GetLimits().v1.maxBufferSize;
+    if (DAWN_UNLIKELY(descriptor->size > maxBufferSize)) {
+        return DAWN_VALIDATION_ERROR(
+            "Buffer size (%u) exceeds the max buffer size limit (%u).%s", descriptor->size,
+            maxBufferSize,
+            DAWN_INCREASE_LIMIT_MESSAGE(device->GetAdapter(), maxBufferSize, descriptor->size));
+    }
 
     return unpacked;
 }
@@ -467,7 +477,8 @@ ResultOrError<UnpackedPtr<BufferDescriptor>> ValidateBufferDescriptor(
 BufferBase::BufferBase(DeviceBase* device, const UnpackedPtr<BufferDescriptor>& descriptor)
     : SharedResource(device, descriptor->label),
       mSize(descriptor->size),
-      mUsage(AddInternalUsages(device, descriptor->usage)),
+      mUsage(descriptor->usage),
+      mInternalUsage(AddInternalUsages(device, descriptor->usage)),
       mState(descriptor.Get<BufferHostMappedPointer>() ? BufferState::HostMappedPersistent
                                                        : BufferState::Unmapped) {
     GetObjectTrackingList()->Track(this);
@@ -479,6 +490,7 @@ BufferBase::BufferBase(DeviceBase* device,
     : SharedResource(device, tag, descriptor->label),
       mSize(descriptor->size),
       mUsage(descriptor->usage),
+      mInternalUsage(descriptor->usage),
       mState(descriptor->mappedAtCreation ? BufferState::MappedAtCreation : BufferState::Unmapped) {
     if (descriptor->mappedAtCreation) {
         mMapOffset = 0;
@@ -532,18 +544,18 @@ uint64_t BufferBase::GetAllocatedSize() const {
     return mAllocatedSize;
 }
 
+wgpu::BufferUsage BufferBase::GetInternalUsage() const {
+    DAWN_ASSERT(!IsError());
+    return mInternalUsage;
+}
+
 wgpu::BufferUsage BufferBase::GetUsage() const {
     DAWN_ASSERT(!IsError());
     return mUsage;
 }
 
-wgpu::BufferUsage BufferBase::GetUsageExternalOnly() const {
-    DAWN_ASSERT(!IsError());
-    return GetUsage() & ~kAllInternalBufferUsages;
-}
-
 wgpu::BufferUsage BufferBase::APIGetUsage() const {
-    return mUsage & ~kAllInternalBufferUsages;
+    return mUsage;
 }
 
 wgpu::BufferMapState BufferBase::APIGetMapState() const {
@@ -585,8 +597,14 @@ MaybeError BufferBase::MapAtCreation() {
     DeviceBase* device = GetDevice();
     if (device->IsToggleEnabled(Toggle::LazyClearResourceOnFirstUse) &&
         !device->IsToggleEnabled(Toggle::DisableLazyClearForMappedAtCreationBuffer)) {
-        memset(ptr, uint8_t(0u), size);
-        device->IncrementLazyClearCountForTesting();
+        // The staging buffer is created with `MappedAtCreation == true` so we don't need to clear
+        // it again.
+        if (mStagingBuffer != nullptr) {
+            DAWN_ASSERT(!mStagingBuffer->NeedsInitialization());
+        } else {
+            memset(ptr, uint8_t(0u), size);
+            device->IncrementLazyClearCountForTesting();
+        }
     } else if (device->IsToggleEnabled(Toggle::NonzeroClearResourcesOnCreationForTesting)) {
         memset(ptr, uint8_t(1u), size);
     }
@@ -621,8 +639,6 @@ MaybeError BufferBase::MapAtCreationInternal() {
             stagingBufferDesc.size = Align(GetAllocatedSize(), 4);
             stagingBufferDesc.mappedAtCreation = true;
             stagingBufferDesc.label = "Dawn_MappedAtCreationStaging";
-
-            IgnoreLazyClearCountScope scope(GetDevice());
             DAWN_TRY_ASSIGN(mStagingBuffer, GetDevice()->CreateBuffer(&stagingBufferDesc));
         }
     }
@@ -816,10 +832,10 @@ Future BufferBase::APIMapAsync2(wgpu::MapMode mode,
             size = mSize - offset;
         }
 
+        WGPUBufferMapAsyncStatus status = WGPUBufferMapAsyncStatus_ValidationError;
         MaybeError maybeError = [&]() -> MaybeError {
             DAWN_INVALID_IF(mState == BufferState::PendingMap,
                             "%s already has an outstanding map pending.", this);
-            WGPUBufferMapAsyncStatus status;
             DAWN_TRY(ValidateMapAsync(mode, offset, size, &status));
             DAWN_TRY(MapAsyncImpl(mode, offset, size));
             return {};
@@ -827,7 +843,8 @@ Future BufferBase::APIMapAsync2(wgpu::MapMode mode,
 
         if (maybeError.IsError()) {
             auto error = maybeError.AcquireError();
-            event = AcquireRef(new MapAsyncEvent2(GetDevice(), callbackInfo, error->GetMessage()));
+            event = AcquireRef(
+                new MapAsyncEvent2(GetDevice(), callbackInfo, error->GetMessage(), status));
             [[maybe_unused]] bool hadError = GetDevice()->ConsumedError(
                 std::move(error), "calling %s.MapAsync(%s, %u, %u, ...).", this, mode, offset,
                 size);
@@ -883,8 +900,7 @@ MaybeError BufferBase::CopyFromStagingBuffer() {
     DAWN_TRY(
         GetDevice()->CopyFromStagingToBuffer(mStagingBuffer.Get(), 0, this, 0, GetAllocatedSize()));
 
-    DynamicUploader* uploader = GetDevice()->GetDynamicUploader();
-    uploader->ReleaseStagingBuffer(std::move(mStagingBuffer));
+    mStagingBuffer = nullptr;
 
     return {};
 }
@@ -977,13 +993,13 @@ MaybeError BufferBase::ValidateMapAsync(wgpu::MapMode mode,
                     wgpu::MapMode::Write, wgpu::MapMode::Read);
 
     if (mode & wgpu::MapMode::Read) {
-        DAWN_INVALID_IF(!(mUsage & wgpu::BufferUsage::MapRead),
-                        "The buffer usages (%s) do not contain %s.", mUsage,
+        DAWN_INVALID_IF(!(mInternalUsage & wgpu::BufferUsage::MapRead),
+                        "The buffer usages (%s) do not contain %s.", mInternalUsage,
                         wgpu::BufferUsage::MapRead);
     } else {
         DAWN_ASSERT(mode & wgpu::MapMode::Write);
-        DAWN_INVALID_IF(!(mUsage & wgpu::BufferUsage::MapWrite),
-                        "The buffer usages (%s) do not contain %s.", mUsage,
+        DAWN_INVALID_IF(!(mInternalUsage & wgpu::BufferUsage::MapWrite),
+                        "The buffer usages (%s) do not contain %s.", mInternalUsage,
                         wgpu::BufferUsage::MapWrite);
     }
 
@@ -1127,15 +1143,12 @@ bool BufferBase::IsFullBufferRange(uint64_t offset, uint64_t size) const {
 }
 
 void BufferBase::DumpMemoryStatistics(MemoryDump* dump, const char* prefix) const {
-    // Do not emit for destroyed buffers.
-    if (!IsAlive()) {
-        return;
-    }
+    DAWN_ASSERT(IsAlive() && !IsError());
     std::string name = absl::StrFormat("%s/buffer_%p", prefix, static_cast<const void*>(this));
     dump->AddScalar(name.c_str(), MemoryDump::kNameSize, MemoryDump::kUnitsBytes,
                     GetAllocatedSize());
     dump->AddString(name.c_str(), "label", GetLabel());
-    dump->AddString(name.c_str(), "usage", absl::StrFormat("%s", GetUsage()));
+    dump->AddString(name.c_str(), "usage", absl::StrFormat("%s", GetInternalUsage()));
 }
 
 }  // namespace dawn::native

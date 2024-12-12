@@ -1,9 +1,46 @@
+//
+// fragment_main
+//
 #include <metal_stdlib>
 using namespace metal;
 
 struct tint_module_vars_struct {
   device int* prevent_dce;
 };
+
+int all_353d6a() {
+  bool res = true;
+  return select(0, 1, all((res == false)));
+}
+
+fragment void fragment_main(device int* prevent_dce [[buffer(0)]]) {
+  tint_module_vars_struct const tint_module_vars = tint_module_vars_struct{.prevent_dce=prevent_dce};
+  (*tint_module_vars.prevent_dce) = all_353d6a();
+}
+//
+// compute_main
+//
+#include <metal_stdlib>
+using namespace metal;
+
+struct tint_module_vars_struct {
+  device int* prevent_dce;
+};
+
+int all_353d6a() {
+  bool res = true;
+  return select(0, 1, all((res == false)));
+}
+
+kernel void compute_main(device int* prevent_dce [[buffer(0)]]) {
+  tint_module_vars_struct const tint_module_vars = tint_module_vars_struct{.prevent_dce=prevent_dce};
+  (*tint_module_vars.prevent_dce) = all_353d6a();
+}
+//
+// vertex_main
+//
+#include <metal_stdlib>
+using namespace metal;
 
 struct VertexOutput {
   float4 pos;
@@ -20,16 +57,6 @@ int all_353d6a() {
   return select(0, 1, all((res == false)));
 }
 
-fragment void fragment_main(device int* prevent_dce [[buffer(0)]]) {
-  tint_module_vars_struct const tint_module_vars = tint_module_vars_struct{.prevent_dce=prevent_dce};
-  (*tint_module_vars.prevent_dce) = all_353d6a();
-}
-
-kernel void compute_main(device int* prevent_dce [[buffer(0)]]) {
-  tint_module_vars_struct const tint_module_vars = tint_module_vars_struct{.prevent_dce=prevent_dce};
-  (*tint_module_vars.prevent_dce) = all_353d6a();
-}
-
 VertexOutput vertex_main_inner() {
   VertexOutput out = {};
   out.pos = float4(0.0f);
@@ -39,5 +66,8 @@ VertexOutput vertex_main_inner() {
 
 vertex vertex_main_outputs vertex_main() {
   VertexOutput const v = vertex_main_inner();
-  return vertex_main_outputs{.VertexOutput_pos=v.pos, .VertexOutput_prevent_dce=v.prevent_dce};
+  vertex_main_outputs tint_wrapper_result = {};
+  tint_wrapper_result.VertexOutput_pos = v.pos;
+  tint_wrapper_result.VertexOutput_prevent_dce = v.prevent_dce;
+  return tint_wrapper_result;
 }

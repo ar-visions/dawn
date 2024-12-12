@@ -1,3 +1,37 @@
+//
+// fragment_main
+//
+
+RWByteAddressBuffer prevent_dce : register(u0);
+int transpose_31e37e() {
+  float4x2 arg_0 = float4x2((1.0f).xx, (1.0f).xx, (1.0f).xx, (1.0f).xx);
+  float2x4 res = transpose(arg_0);
+  return (((res[0u].x == 0.0f)) ? (int(1)) : (int(0)));
+}
+
+void fragment_main() {
+  prevent_dce.Store(0u, asuint(transpose_31e37e()));
+}
+
+//
+// compute_main
+//
+
+RWByteAddressBuffer prevent_dce : register(u0);
+int transpose_31e37e() {
+  float4x2 arg_0 = float4x2((1.0f).xx, (1.0f).xx, (1.0f).xx, (1.0f).xx);
+  float2x4 res = transpose(arg_0);
+  return (((res[0u].x == 0.0f)) ? (int(1)) : (int(0)));
+}
+
+[numthreads(1, 1, 1)]
+void compute_main() {
+  prevent_dce.Store(0u, asuint(transpose_31e37e()));
+}
+
+//
+// vertex_main
+//
 struct VertexOutput {
   float4 pos;
   int prevent_dce;
@@ -9,20 +43,10 @@ struct vertex_main_outputs {
 };
 
 
-RWByteAddressBuffer prevent_dce : register(u0);
 int transpose_31e37e() {
   float4x2 arg_0 = float4x2((1.0f).xx, (1.0f).xx, (1.0f).xx, (1.0f).xx);
   float2x4 res = transpose(arg_0);
-  return (((res[0].x == 0.0f)) ? (1) : (0));
-}
-
-void fragment_main() {
-  prevent_dce.Store(0u, asuint(transpose_31e37e()));
-}
-
-[numthreads(1, 1, 1)]
-void compute_main() {
-  prevent_dce.Store(0u, asuint(transpose_31e37e()));
+  return (((res[0u].x == 0.0f)) ? (int(1)) : (int(0)));
 }
 
 VertexOutput vertex_main_inner() {
@@ -35,9 +59,7 @@ VertexOutput vertex_main_inner() {
 
 vertex_main_outputs vertex_main() {
   VertexOutput v_1 = vertex_main_inner();
-  VertexOutput v_2 = v_1;
-  VertexOutput v_3 = v_1;
-  vertex_main_outputs v_4 = {v_3.prevent_dce, v_2.pos};
-  return v_4;
+  vertex_main_outputs v_2 = {v_1.prevent_dce, v_1.pos};
+  return v_2;
 }
 

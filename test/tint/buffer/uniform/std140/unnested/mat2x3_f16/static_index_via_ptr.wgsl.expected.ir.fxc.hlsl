@@ -1,12 +1,12 @@
-SKIP: FAILED
+SKIP: INVALID
 
 
 cbuffer cbuffer_m : register(b0) {
   uint4 m[1];
 };
-static int counter = 0;
+static int counter = int(0);
 int i() {
-  counter = (counter + 1);
+  counter = (counter + int(1));
   return counter;
 }
 
@@ -34,5 +34,7 @@ void f() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x000001C34D6F6C50(11,8-16): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(11,8-16): error X3000: syntax error: unexpected token 'float16_t'
 
+
+tint executable returned error: exit status 1

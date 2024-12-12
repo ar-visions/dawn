@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 struct FragmentOutputs {
   int loc0;
@@ -20,7 +20,7 @@ struct main_outputs {
 
 
 FragmentOutputs main_inner() {
-  FragmentOutputs v = {1, 1u, 1.0f, float4(1.0f, 2.0f, 3.0f, 4.0f), float16_t(2.25h), vector<float16_t, 3>(float16_t(3.0h), float16_t(5.0h), float16_t(8.0h))};
+  FragmentOutputs v = {int(1), 1u, 1.0f, float4(1.0f, 2.0f, 3.0f, 4.0f), float16_t(2.25h), vector<float16_t, 3>(float16_t(3.0h), float16_t(5.0h), float16_t(8.0h))};
   return v;
 }
 
@@ -37,5 +37,7 @@ main_outputs main() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x0000022F055467C0(6,3-11): error X3000: unrecognized identifier 'float16_t'
+<scrubbed_path>(6,3-11): error X3000: unrecognized identifier 'float16_t'
 
+
+tint executable returned error: exit status 1

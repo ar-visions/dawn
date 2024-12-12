@@ -53,17 +53,13 @@ Result<Output> Generate(core::ir::Module& ir, const Options& options) {
         return raise_result.Failure();
     }
 
-    // Generate the MSL code.
-    auto result = Print(ir);
+    auto result = Print(ir, options);
     if (result != Success) {
         return result.Failure();
     }
-    output.msl = result->msl;
-    output.workgroup_allocations = std::move(result->workgroup_allocations);
-    output.needs_storage_buffer_sizes = raise_result->needs_storage_buffer_sizes;
-    output.has_invariant_attribute = result->has_invariant_attribute;
-    // TODO(crbug.com/42251016): Set used_array_length_from_uniform_indices.
-    return output;
+
+    result->needs_storage_buffer_sizes = raise_result->needs_storage_buffer_sizes;
+    return result;
 }
 
 Result<Output> Generate(const Program& program, const Options& options) {
@@ -86,17 +82,15 @@ Result<Output> Generate(const Program& program, const Options& options) {
         return Failure{sanitized_result.program.Diagnostics()};
     }
     output.needs_storage_buffer_sizes = sanitized_result.needs_storage_buffer_sizes;
-    output.used_array_length_from_uniform_indices =
-        std::move(sanitized_result.used_array_length_from_uniform_indices);
 
     // Generate the MSL code.
-    auto impl = std::make_unique<ASTPrinter>(sanitized_result.program);
+    auto impl = std::make_unique<ASTPrinter>(sanitized_result.program, options);
     if (!impl->Generate()) {
         return Failure{impl->Diagnostics()};
     }
     output.msl = impl->Result();
     output.has_invariant_attribute = impl->HasInvariant();
-    output.workgroup_allocations = impl->DynamicWorkgroupAllocations();
+    output.workgroup_info.allocations = impl->DynamicWorkgroupAllocations();
 
     return output;
 }

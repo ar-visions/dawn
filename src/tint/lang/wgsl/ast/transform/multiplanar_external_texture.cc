@@ -302,7 +302,7 @@ struct MultiplanarExternalTexture::State {
             b.Member("samplePlane0RectMax", b.ty.vec2<f32>()),
             b.Member("samplePlane1RectMin", b.ty.vec2<f32>()),
             b.Member("samplePlane1RectMax", b.ty.vec2<f32>()),
-            b.Member("visibleSize", b.ty.vec2<u32>()),
+            b.Member("apparentSize", b.ty.vec2<u32>()),
             b.Member("plane1CoordFactor", b.ty.vec2<f32>())};
 
         params_struct_sym = b.Symbols().New("ExternalTextureParams");
@@ -395,7 +395,7 @@ struct MultiplanarExternalTexture::State {
             case wgsl::BuiltinFn::kTextureLoad:
                 stmts.Push(b.Decl(
                     b.Let("clampedCoords", b.Call("min", b.Call<vec2<u32>>("coord"),
-                                                  b.MemberAccessor("params", "visibleSize")))));
+                                                  b.MemberAccessor("params", "apparentSize")))));
                 stmts.Push(b.Decl(b.Let(
                     "plane0_clamped",
                     b.Call<vec2<u32>>(b.Call(
@@ -471,7 +471,7 @@ struct MultiplanarExternalTexture::State {
                                                              NewBindingSymbols syms) {
         const Expression* plane_0_binding_param = ctx.Clone(expr->args[0]);
 
-        if (TINT_UNLIKELY(expr->args.Length() != 3)) {
+        if (DAWN_UNLIKELY(expr->args.Length() != 3)) {
             TINT_ICE() << "expected textureSampleBaseClampToEdge call with a "
                           "texture_external to have 3 parameters, found "
                        << expr->args.Length() << " parameters";
@@ -515,7 +515,7 @@ struct MultiplanarExternalTexture::State {
     /// @param syms the expanded symbols to be used in the new call
     /// @returns a call expression to textureLoadExternal
     const CallExpression* createTextureLoad(const sem::Call* call, NewBindingSymbols syms) {
-        if (TINT_UNLIKELY(call->Arguments().Length() != 2)) {
+        if (DAWN_UNLIKELY(call->Arguments().Length() != 2)) {
             TINT_ICE()
                 << "expected textureLoad call with a texture_external to have 2 arguments, found "
                 << call->Arguments().Length() << " arguments";
@@ -559,14 +559,14 @@ struct MultiplanarExternalTexture::State {
     /// Returns the expression used to replace a textureDimensions call.
     /// @param call the call expression being transformed
     /// @param syms the expanded symbols to be used in the new call
-    /// @returns a load of params.visibleSize
+    /// @returns a load of params.apparentSize
     const Expression* createTextureDimensions(const sem::Call* call, NewBindingSymbols syms) {
-        if (TINT_UNLIKELY(call->Arguments().Length() != 1)) {
+        if (DAWN_UNLIKELY(call->Arguments().Length() != 1)) {
             TINT_ICE() << "expected textureDimensions call with a texture_external to have 1 "
                           "arguments, found "
                        << call->Arguments().Length() << " arguments";
         }
-        return b.Add(b.MemberAccessor(syms.params, "visibleSize"), b.Call<vec2<u32>>(1_a));
+        return b.Add(b.MemberAccessor(syms.params, "apparentSize"), b.Call<vec2<u32>>(1_a));
     }
 };
 

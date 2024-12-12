@@ -31,6 +31,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "src/tint/api/common/binding_point.h"
@@ -259,13 +260,16 @@ struct Options {
     Version version;
 
     /// Offset of the firstVertex push constant.
-    std::optional<int32_t> first_vertex_offset;
+    std::optional<uint32_t> first_vertex_offset;
 
     /// Offset of the firstInstance push constant.
-    std::optional<int32_t> first_instance_offset;
+    std::optional<uint32_t> first_instance_offset;
 
     /// Offsets of the minDepth and maxDepth push constants.
     std::optional<RangeOffsets> depth_range_offsets;
+
+    /// Vertex inputs to perform BGRA swizzle on.
+    std::unordered_set<uint32_t> bgra_swizzle_locations;
 
     /// The bindings
     Bindings bindings{};
@@ -279,6 +283,7 @@ struct Options {
                  first_vertex_offset,
                  first_instance_offset,
                  depth_range_offsets,
+                 bgra_swizzle_locations,
                  bindings);
 };
 

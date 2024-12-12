@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 struct frexp_result_vec3_f16 {
   vector<float16_t, 3> fract;
@@ -15,7 +15,7 @@ struct vertex_main_outputs {
 
 
 void frexp_ae4a66() {
-  frexp_result_vec3_f16 res = {(float16_t(0.5h)).xxx, (1).xxx};
+  frexp_result_vec3_f16 res = {(float16_t(0.5h)).xxx, (int(1)).xxx};
 }
 
 void fragment_main() {
@@ -42,5 +42,7 @@ vertex_main_outputs vertex_main() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x00000121AC39F320(2,10-18): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(2,10-18): error X3000: syntax error: unexpected token 'float16_t'
 
+
+tint executable returned error: exit status 1

@@ -1,5 +1,45 @@
-SKIP: FAILED
+//
+// fragment_main
+//
+struct modf_result_vec4_f32 {
+  float4 fract;
+  float4 whole;
+};
 
+
+void modf_4bfced() {
+  float4 arg_0 = (-1.5f).xxxx;
+  float4 v = (0.0f).xxxx;
+  modf_result_vec4_f32 res = {modf(arg_0, v), v};
+}
+
+void fragment_main() {
+  modf_4bfced();
+}
+
+//
+// compute_main
+//
+struct modf_result_vec4_f32 {
+  float4 fract;
+  float4 whole;
+};
+
+
+void modf_4bfced() {
+  float4 arg_0 = (-1.5f).xxxx;
+  float4 v = (0.0f).xxxx;
+  modf_result_vec4_f32 res = {modf(arg_0, v), v};
+}
+
+[numthreads(1, 1, 1)]
+void compute_main() {
+  modf_4bfced();
+}
+
+//
+// vertex_main
+//
 struct modf_result_vec4_f32 {
   float4 fract;
   float4 whole;
@@ -16,34 +56,21 @@ struct vertex_main_outputs {
 
 void modf_4bfced() {
   float4 arg_0 = (-1.5f).xxxx;
-  modf_result_vec4_f32 res = modf(arg_0);
-}
-
-void fragment_main() {
-  modf_4bfced();
-}
-
-[numthreads(1, 1, 1)]
-void compute_main() {
-  modf_4bfced();
+  float4 v = (0.0f).xxxx;
+  modf_result_vec4_f32 res = {modf(arg_0, v), v};
 }
 
 VertexOutput vertex_main_inner() {
   VertexOutput tint_symbol = (VertexOutput)0;
   tint_symbol.pos = (0.0f).xxxx;
   modf_4bfced();
-  VertexOutput v = tint_symbol;
-  return v;
+  VertexOutput v_1 = tint_symbol;
+  return v_1;
 }
 
 vertex_main_outputs vertex_main() {
-  VertexOutput v_1 = vertex_main_inner();
-  vertex_main_outputs v_2 = {v_1.pos};
-  return v_2;
+  VertexOutput v_2 = vertex_main_inner();
+  vertex_main_outputs v_3 = {v_2.pos};
+  return v_3;
 }
-
-FXC validation failure:
-c:\src\dawn\Shader@0x00000271B99DF670(17,30-40): error X3013: 'modf': no matching 1 parameter intrinsic function
-c:\src\dawn\Shader@0x00000271B99DF670(17,30-40): error X3013: Possible intrinsic functions are:
-c:\src\dawn\Shader@0x00000271B99DF670(17,30-40): error X3013:     modf(float|half|min10float|min16float, out float|half|min10float|min16float ip)
 

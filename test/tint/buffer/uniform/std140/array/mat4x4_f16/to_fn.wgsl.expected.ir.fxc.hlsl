@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 
 cbuffer cbuffer_u : register(b0) {
@@ -6,11 +6,11 @@ cbuffer cbuffer_u : register(b0) {
 };
 RWByteAddressBuffer s : register(u1);
 float16_t a(matrix<float16_t, 4, 4> a_1[4]) {
-  return a_1[0][0][0u];
+  return a_1[int(0)][int(0)][0u];
 }
 
 float16_t b(matrix<float16_t, 4, 4> m) {
-  return m[0][0u];
+  return m[int(0)][0u];
 }
 
 float16_t c(vector<float16_t, 4> v) {
@@ -72,5 +72,7 @@ void f() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x0000027725473850(6,1-9): error X3000: unrecognized identifier 'float16_t'
+<scrubbed_path>(6,1-9): error X3000: unrecognized identifier 'float16_t'
 
+
+tint executable returned error: exit status 1

@@ -38,9 +38,11 @@
 #include "dawn/native/Adapter.h"
 #include "dawn/native/NullBackend.h"
 #include "dawn/tests/PartitionAllocSupport.h"
+#include "dawn/tests/StringViewMatchers.h"
 #include "dawn/tests/ToggleParser.h"
 #include "dawn/tests/unittests/validation/ValidationTest.h"
 #include "dawn/utils/WireHelper.h"
+#include "dawn/webgpu_cpp_print.h"
 
 namespace {
 
@@ -116,7 +118,7 @@ ValidationTest::ValidationTest() {
         return dawn::native::GetProcs().instanceRequestAdapter2(
             self, options,
             {nullptr, WGPUCallbackMode_AllowSpontaneous,
-             [](WGPURequestAdapterStatus status, WGPUAdapter cAdapter, char const* message,
+             [](WGPURequestAdapterStatus status, WGPUAdapter cAdapter, WGPUStringView message,
                 void* userdata, void*) {
                  gCurrentTest->mBackendAdapter = dawn::native::FromAPI(cAdapter);
 
@@ -162,7 +164,7 @@ ValidationTest::ValidationTest() {
         return dawn::native::GetProcs().adapterRequestDevice2(
             self, reinterpret_cast<WGPUDeviceDescriptor*>(&deviceDesc),
             {nullptr, WGPUCallbackMode_AllowSpontaneous,
-             [](WGPURequestDeviceStatus status, WGPUDevice cDevice, const char* message,
+             [](WGPURequestDeviceStatus status, WGPUDevice cDevice, WGPUStringView message,
                 void* userdata, void*) {
                  gCurrentTest->mLastCreatedBackendDevice = cDevice;
 
@@ -305,6 +307,10 @@ dawn::utils::WireHelper* ValidationTest::GetWireHelper() const {
     return mWireHelper.get();
 }
 
+uint64_t ValidationTest::GetInstanceDeprecationCountForTesting() {
+    return mDawnInstance->GetDeprecationWarningCountForTesting();
+}
+
 uint32_t ValidationTest::GetDeviceCreationDeprecationWarningExpectation(
     const wgpu::DeviceDescriptor& descriptor) {
     uint32_t expectedDeprecatedCount = 0;
@@ -312,11 +318,6 @@ uint32_t ValidationTest::GetDeviceCreationDeprecationWarningExpectation(
     std::unordered_set<wgpu::FeatureName> requiredFeatureSet;
     for (uint32_t i = 0; i < descriptor.requiredFeatureCount; ++i) {
         requiredFeatureSet.insert(descriptor.requiredFeatures[i]);
-    }
-    // ChromiumExperimentalSubgroups feature is deprecated.
-    // TODO(349125474): Remove deprecated ChromiumExperimentalSubgroups.
-    if (requiredFeatureSet.count(wgpu::FeatureName::ChromiumExperimentalSubgroups)) {
-        expectedDeprecatedCount++;
     }
 
     return expectedDeprecatedCount;
@@ -329,7 +330,7 @@ wgpu::Device ValidationTest::RequestDeviceSync(const wgpu::DeviceDescriptor& dev
     EXPECT_DEPRECATION_WARNINGS(
         adapter.RequestDevice(&deviceDesc, wgpu::CallbackMode::AllowSpontaneous,
                               [&apiDevice](wgpu::RequestDeviceStatus status, wgpu::Device result,
-                                           const char* message) {
+                                           wgpu::StringView message) {
                                   if (status != wgpu::RequestDeviceStatus::Success) {
                                       ADD_FAILURE() << "Unable to create device: " << message;
                                       DAWN_ASSERT(false);
@@ -353,6 +354,11 @@ void ValidationTest::SetUp(const wgpu::InstanceDescriptor* nativeDesc,
         "_" + ::testing::UnitTest::GetInstance()->current_test_info()->name();
     mWireHelper->BeginWireTrace(traceName.c_str());
 
+    // The wire client and server request subgroup limit info, which
+    // triggers a deprecation warning.
+    // TODO(crbug.com/382520104): Remove those limits
+    const auto deprecationCountFromSubgroupLimits = UsesWire() ? 1u : 0u;
+
     // Initialize the instances.
     std::tie(instance, mDawnInstance) = mWireHelper->CreateInstances(nativeDesc, wireDesc);
 
@@ -360,9 +366,12 @@ void ValidationTest::SetUp(const wgpu::InstanceDescriptor* nativeDesc,
     wgpu::RequestAdapterOptions options = {};
     options.backendType = wgpu::BackendType::Null;
     options.compatibilityMode = gCurrentTest->UseCompatibilityMode();
-    instance.RequestAdapter(&options, wgpu::CallbackMode::AllowSpontaneous,
-                            [this](wgpu::RequestAdapterStatus, wgpu::Adapter result,
-                                   char const*) -> void { adapter = std::move(result); });
+    EXPECT_DEPRECATION_WARNINGS(
+        instance.RequestAdapter(&options, wgpu::CallbackMode::AllowSpontaneous,
+                                [this](wgpu::RequestAdapterStatus, wgpu::Adapter result,
+                                       wgpu::StringView) -> void { adapter = std::move(result); }),
+        deprecationCountFromSubgroupLimits);
+
     FlushWire();
     DAWN_ASSERT(adapter);
 
@@ -370,7 +379,7 @@ void ValidationTest::SetUp(const wgpu::InstanceDescriptor* nativeDesc,
     wgpu::DeviceDescriptor deviceDescriptor = {};
     deviceDescriptor.SetDeviceLostCallback(
         wgpu::CallbackMode::AllowSpontaneous,
-        [this](const wgpu::Device&, wgpu::DeviceLostReason reason, const char* message) {
+        [this](const wgpu::Device&, wgpu::DeviceLostReason reason, wgpu::StringView message) {
             if (mExpectDestruction) {
                 EXPECT_EQ(reason, wgpu::DeviceLostReason::Destroyed);
                 return;
@@ -379,7 +388,8 @@ void ValidationTest::SetUp(const wgpu::InstanceDescriptor* nativeDesc,
             DAWN_ASSERT(false);
         });
     deviceDescriptor.SetUncapturedErrorCallback(
-        [](const wgpu::Device&, wgpu::ErrorType type, const char* message, ValidationTest* self) {
+        [](const wgpu::Device&, wgpu::ErrorType type, wgpu::StringView message,
+           ValidationTest* self) {
             DAWN_ASSERT(type != wgpu::ErrorType::NoError);
 
             ASSERT_TRUE(self->mExpectError) << "Got unexpected device error: " << message;
@@ -390,7 +400,7 @@ void ValidationTest::SetUp(const wgpu::InstanceDescriptor* nativeDesc,
 
             self->mDeviceErrorMessage = message;
             if (self->mExpectError) {
-                ASSERT_THAT(message, self->mErrorMatcher);
+                ASSERT_THAT(message, testing::SizedStringMatches(self->mErrorMatcher));
             }
             self->mError = true;
         },

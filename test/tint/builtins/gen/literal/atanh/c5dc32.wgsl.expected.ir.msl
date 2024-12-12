@@ -1,3 +1,32 @@
+//
+// fragment_main
+//
+#include <metal_stdlib>
+using namespace metal;
+
+void atanh_c5dc32() {
+  float res = 0.54930615425109863281f;
+}
+
+fragment void fragment_main() {
+  atanh_c5dc32();
+}
+//
+// compute_main
+//
+#include <metal_stdlib>
+using namespace metal;
+
+void atanh_c5dc32() {
+  float res = 0.54930615425109863281f;
+}
+
+kernel void compute_main() {
+  atanh_c5dc32();
+}
+//
+// vertex_main
+//
 #include <metal_stdlib>
 using namespace metal;
 
@@ -13,14 +42,6 @@ void atanh_c5dc32() {
   float res = 0.54930615425109863281f;
 }
 
-fragment void fragment_main() {
-  atanh_c5dc32();
-}
-
-kernel void compute_main() {
-  atanh_c5dc32();
-}
-
 VertexOutput vertex_main_inner() {
   VertexOutput out = {};
   out.pos = float4(0.0f);
@@ -29,5 +50,7 @@ VertexOutput vertex_main_inner() {
 }
 
 vertex vertex_main_outputs vertex_main() {
-  return vertex_main_outputs{.VertexOutput_pos=vertex_main_inner().pos};
+  vertex_main_outputs tint_wrapper_result = {};
+  tint_wrapper_result.VertexOutput_pos = vertex_main_inner().pos;
+  return tint_wrapper_result;
 }

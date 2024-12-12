@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 struct FragmentInputs0 {
   float4 position;
@@ -46,5 +46,7 @@ void main(main_inputs inputs) {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x00000130421B2D80(8,10-18): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(8,10-18): error X3000: syntax error: unexpected token 'float16_t'
 
+
+tint executable returned error: exit status 1

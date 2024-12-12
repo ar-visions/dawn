@@ -297,6 +297,21 @@ MaybeError Device::CreateZeroBuffer() {
     zeroBufferDescriptor.label = "ZeroBuffer_Internal";
     DAWN_TRY_ASSIGN(mZeroBuffer, Buffer::Create(this, Unpack(&zeroBufferDescriptor)));
 
+    CommandRecordingContext* commandContext =
+        ToBackend(GetQueue())->GetPendingCommandContext(QueueBase::SubmitMode::Passive);
+
+    DynamicUploader* uploader = GetDynamicUploader();
+    UploadHandle uploadHandle;
+    DAWN_TRY_ASSIGN(uploadHandle,
+                    uploader->Allocate(kZeroBufferSize, GetQueue()->GetPendingCommandSerial(),
+                                       kCopyBufferToBufferOffsetAlignment));
+
+    memset(uploadHandle.mappedBuffer, 0u, kZeroBufferSize);
+
+    CopyFromStagingToBufferHelper(commandContext, uploadHandle.stagingBuffer,
+                                  uploadHandle.startOffset, mZeroBuffer.Get(), 0, kZeroBufferSize);
+
+    mZeroBuffer->SetInitialized(true);
     return {};
 }
 
@@ -304,26 +319,6 @@ MaybeError Device::ClearBufferToZero(CommandRecordingContext* commandContext,
                                      BufferBase* destination,
                                      uint64_t offset,
                                      uint64_t size) {
-    // TODO(crbug.com/dawn/852): It would be ideal to clear the buffer in CreateZeroBuffer, but
-    // the allocation of the staging buffer causes various end2end tests that monitor heap usage
-    // to fail if it's done during device creation. Perhaps ClearUnorderedAccessView*() can be
-    // used to avoid that.
-    if (!mZeroBuffer->IsInitialized()) {
-        DynamicUploader* uploader = GetDynamicUploader();
-        UploadHandle uploadHandle;
-        DAWN_TRY_ASSIGN(uploadHandle,
-                        uploader->Allocate(kZeroBufferSize, GetQueue()->GetPendingCommandSerial(),
-                                           kCopyBufferToBufferOffsetAlignment));
-
-        memset(uploadHandle.mappedBuffer, 0u, kZeroBufferSize);
-
-        CopyFromStagingToBufferHelper(commandContext, uploadHandle.stagingBuffer,
-                                      uploadHandle.startOffset, mZeroBuffer.Get(), 0,
-                                      kZeroBufferSize);
-
-        mZeroBuffer->SetInitialized(true);
-    }
-
     Buffer* dstBuffer = ToBackend(destination);
 
     // Necessary to ensure residency of the zero buffer.
@@ -749,16 +744,18 @@ Device::GetSamplerShaderVisibleDescriptorAllocator() const {
 MutexProtected<StagingDescriptorAllocator>* Device::GetViewStagingDescriptorAllocator(
     uint32_t descriptorCount) const {
     DAWN_ASSERT(descriptorCount <= kMaxViewDescriptorsPerBindGroup);
+    DAWN_ASSERT(descriptorCount > 0);
     // This is Log2 of the next power of two, plus 1.
-    uint32_t allocatorIndex = descriptorCount == 0 ? 0 : Log2Ceil(descriptorCount) + 1;
+    uint32_t allocatorIndex = Log2Ceil(descriptorCount) + 1;
     return mViewAllocators[allocatorIndex].get();
 }
 
 MutexProtected<StagingDescriptorAllocator>* Device::GetSamplerStagingDescriptorAllocator(
     uint32_t descriptorCount) const {
     DAWN_ASSERT(descriptorCount <= kMaxSamplerDescriptorsPerBindGroup);
+    DAWN_ASSERT(descriptorCount > 0);
     // This is Log2 of the next power of two, plus 1.
-    uint32_t allocatorIndex = descriptorCount == 0 ? 0 : Log2Ceil(descriptorCount) + 1;
+    uint32_t allocatorIndex = Log2Ceil(descriptorCount) + 1;
     return mSamplerAllocators[allocatorIndex].get();
 }
 

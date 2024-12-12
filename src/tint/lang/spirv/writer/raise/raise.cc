@@ -29,6 +29,7 @@
 
 #include <utility>
 
+#include "src/tint/lang/core/ir/module.h"
 #include "src/tint/lang/core/ir/transform/add_empty_entry_point.h"
 #include "src/tint/lang/core/ir/transform/bgra8unorm_polyfill.h"
 #include "src/tint/lang/core/ir/transform/binary_polyfill.h"
@@ -41,6 +42,7 @@
 #include "src/tint/lang/core/ir/transform/direct_variable_access.h"
 #include "src/tint/lang/core/ir/transform/multiplanar_external_texture.h"
 #include "src/tint/lang/core/ir/transform/preserve_padding.h"
+#include "src/tint/lang/core/ir/transform/prevent_infinite_loops.h"
 #include "src/tint/lang/core/ir/transform/robustness.h"
 #include "src/tint/lang/core/ir/transform/std140.h"
 #include "src/tint/lang/core/ir/transform/vectorize_scalar_matrix_constructors.h"
@@ -71,6 +73,10 @@ Result<SuccessType> Raise(core::ir::Module& module, const Options& options) {
     PopulateRemapperAndMultiplanarOptions(options, remapper_data, multiplanar_map);
 
     RUN_TRANSFORM(core::ir::transform::BindingRemapper, module, remapper_data);
+
+    if (!options.disable_robustness) {
+        RUN_TRANSFORM(core::ir::transform::PreventInfiniteLoops, module);
+    }
 
     core::ir::transform::BinaryPolyfillConfig binary_polyfills;
     binary_polyfills.bitshift_modulo = true;
@@ -136,10 +142,12 @@ Result<SuccessType> Raise(core::ir::Module& module, const Options& options) {
     // produce pointers to matrices.
     RUN_TRANSFORM(core::ir::transform::CombineAccessInstructions, module);
 
-    // DemoteToHelper must come before any transform that introduces non-core instructions.
-    RUN_TRANSFORM(core::ir::transform::DemoteToHelper, module);
+    if (!options.use_demote_to_helper_invocation_extensions) {
+        // DemoteToHelper must come before any transform that introduces non-core instructions.
+        RUN_TRANSFORM(core::ir::transform::DemoteToHelper, module);
+    }
 
-    RUN_TRANSFORM(raise::BuiltinPolyfill, module);
+    RUN_TRANSFORM(raise::BuiltinPolyfill, module, options.use_vulkan_memory_model);
     RUN_TRANSFORM(raise::ExpandImplicitSplats, module);
     RUN_TRANSFORM(raise::HandleMatrixArithmetic, module);
     RUN_TRANSFORM(raise::MergeReturn, module);

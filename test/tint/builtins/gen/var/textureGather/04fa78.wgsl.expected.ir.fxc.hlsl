@@ -1,3 +1,45 @@
+//
+// fragment_main
+//
+
+RWByteAddressBuffer prevent_dce : register(u0);
+TextureCubeArray<int4> arg_1 : register(t1, space1);
+SamplerState arg_2 : register(s2, space1);
+int4 textureGather_04fa78() {
+  float3 arg_3 = (1.0f).xxx;
+  uint arg_4 = 1u;
+  float3 v = arg_3;
+  int4 res = arg_1.GatherGreen(arg_2, float4(v, float(arg_4)));
+  return res;
+}
+
+void fragment_main() {
+  prevent_dce.Store4(0u, asuint(textureGather_04fa78()));
+}
+
+//
+// compute_main
+//
+
+RWByteAddressBuffer prevent_dce : register(u0);
+TextureCubeArray<int4> arg_1 : register(t1, space1);
+SamplerState arg_2 : register(s2, space1);
+int4 textureGather_04fa78() {
+  float3 arg_3 = (1.0f).xxx;
+  uint arg_4 = 1u;
+  float3 v = arg_3;
+  int4 res = arg_1.GatherGreen(arg_2, float4(v, float(arg_4)));
+  return res;
+}
+
+[numthreads(1, 1, 1)]
+void compute_main() {
+  prevent_dce.Store4(0u, asuint(textureGather_04fa78()));
+}
+
+//
+// vertex_main
+//
 struct VertexOutput {
   float4 pos;
   int4 prevent_dce;
@@ -9,41 +51,27 @@ struct vertex_main_outputs {
 };
 
 
-RWByteAddressBuffer prevent_dce : register(u0);
 TextureCubeArray<int4> arg_1 : register(t1, space1);
 SamplerState arg_2 : register(s2, space1);
 int4 textureGather_04fa78() {
   float3 arg_3 = (1.0f).xxx;
   uint arg_4 = 1u;
-  TextureCubeArray<int4> v = arg_1;
-  SamplerState v_1 = arg_2;
-  float3 v_2 = arg_3;
-  int4 res = v.GatherGreen(v_1, float4(v_2, float(arg_4)));
+  float3 v = arg_3;
+  int4 res = arg_1.GatherGreen(arg_2, float4(v, float(arg_4)));
   return res;
-}
-
-void fragment_main() {
-  prevent_dce.Store4(0u, asuint(textureGather_04fa78()));
-}
-
-[numthreads(1, 1, 1)]
-void compute_main() {
-  prevent_dce.Store4(0u, asuint(textureGather_04fa78()));
 }
 
 VertexOutput vertex_main_inner() {
   VertexOutput tint_symbol = (VertexOutput)0;
   tint_symbol.pos = (0.0f).xxxx;
   tint_symbol.prevent_dce = textureGather_04fa78();
-  VertexOutput v_3 = tint_symbol;
-  return v_3;
+  VertexOutput v_1 = tint_symbol;
+  return v_1;
 }
 
 vertex_main_outputs vertex_main() {
-  VertexOutput v_4 = vertex_main_inner();
-  VertexOutput v_5 = v_4;
-  VertexOutput v_6 = v_4;
-  vertex_main_outputs v_7 = {v_6.prevent_dce, v_5.pos};
-  return v_7;
+  VertexOutput v_2 = vertex_main_inner();
+  vertex_main_outputs v_3 = {v_2.prevent_dce, v_2.pos};
+  return v_3;
 }
 

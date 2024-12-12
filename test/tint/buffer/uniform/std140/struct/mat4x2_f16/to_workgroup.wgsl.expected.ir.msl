@@ -14,9 +14,11 @@ struct tint_array {
 };
 
 struct S {
-  int before;
-  half4x2 m;
-  int after;
+  /* 0x0000 */ int before;
+  /* 0x0004 */ half4x2 m;
+  /* 0x0014 */ tint_array<int8_t, 44> tint_pad;
+  /* 0x0040 */ int after;
+  /* 0x0044 */ tint_array<int8_t, 60> tint_pad_1;
 };
 
 struct tint_module_vars_struct {
@@ -46,9 +48,9 @@ void f_inner(uint tint_local_index, tint_module_vars_struct tint_module_vars) {
   }
   threadgroup_barrier(mem_flags::mem_threadgroup);
   (*tint_module_vars.w) = (*tint_module_vars.u);
-  (*tint_module_vars.w)[1] = (*tint_module_vars.u)[2];
-  (*tint_module_vars.w)[3].m = (*tint_module_vars.u)[2].m;
-  (*tint_module_vars.w)[1].m[0] = (*tint_module_vars.u)[0].m[1].yx;
+  (*tint_module_vars.w)[1u] = (*tint_module_vars.u)[2u];
+  (*tint_module_vars.w)[3u].m = (*tint_module_vars.u)[2u].m;
+  (*tint_module_vars.w)[1u].m[0u] = (*tint_module_vars.u)[0u].m[1u].yx;
 }
 
 kernel void f(uint tint_local_index [[thread_index_in_threadgroup]], const constant tint_array<S, 4>* u [[buffer(0)]], threadgroup tint_symbol_1* v_2 [[threadgroup(0)]]) {

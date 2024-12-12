@@ -89,33 +89,8 @@ Adapter& Adapter::operator=(const Adapter& other) {
     return *this;
 }
 
-wgpu::Status Adapter::GetInfo(wgpu::AdapterInfo* info) const {
-    return GetInfo(reinterpret_cast<WGPUAdapterInfo*>(info));
-}
-
-wgpu::Status Adapter::GetInfo(WGPUAdapterInfo* info) const {
-    return mImpl->APIGetInfo(FromAPI(info));
-}
-
-wgpu::Status Adapter::GetProperties(wgpu::AdapterProperties* properties) const {
-    return GetProperties(reinterpret_cast<WGPUAdapterProperties*>(properties));
-}
-
-wgpu::Status Adapter::GetProperties(WGPUAdapterProperties* properties) const {
-    return mImpl->APIGetProperties(FromAPI(properties));
-}
-
 WGPUAdapter Adapter::Get() const {
     return ToAPI(mImpl);
-}
-
-std::vector<const char*> Adapter::GetSupportedFeatures() const {
-    FeaturesSet supportedFeaturesSet = mImpl->GetSupportedFeatures();
-    return supportedFeaturesSet.GetEnabledFeatureNames();
-}
-
-wgpu::ConvertibleStatus Adapter::GetLimits(WGPUSupportedLimits* limits) const {
-    return mImpl->APIGetLimits(FromAPI(limits));
 }
 
 void Adapter::SetUseTieredLimits(bool useTieredLimits) {
@@ -306,7 +281,24 @@ const FeatureInfo* GetFeatureInfo(wgpu::FeatureName feature) {
 }
 
 void DumpMemoryStatistics(WGPUDevice device, MemoryDump* dump) {
+    auto deviceLock(FromAPI(device)->GetScopedLock());
     FromAPI(device)->DumpMemoryStatistics(dump);
+}
+
+uint64_t ComputeEstimatedMemoryUsage(WGPUDevice device) {
+    auto deviceLock(FromAPI(device)->GetScopedLock());
+    return FromAPI(device)->ComputeEstimatedMemoryUsage();
+}
+
+void ReduceMemoryUsage(WGPUDevice device) {
+    auto deviceLock(FromAPI(device)->GetScopedLock());
+    FromAPI(device)->ReduceMemoryUsage();
+}
+
+void PerformIdleTasks(const wgpu::Device& device) {
+    auto* deviceBase = FromAPI(device.Get());
+    auto deviceLock(deviceBase->GetScopedLock());
+    deviceBase->PerformIdleTasks();
 }
 
 }  // namespace dawn::native

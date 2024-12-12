@@ -59,9 +59,7 @@ if (TINT_BUILD_IR_BINARY)
 endif()
 
 if (TINT_BUILD_IR_FUZZER AND NOT TINT_BUILD_IR_BINARY)
-  message(FATAL_ERROR "Building IR fuzzer 'TINT_BUILD_IR_FUZZER' is enabled, "
-                      "but building IR binary format 'TINT_BUILD_IR_BINARY' is "
-                      "not")
+  message(FATAL_ERROR "TINT_BUILD_IR_FUZZER requires TINT_BUILD_IR_BINARY")
 endif()
 
 ################################################################################
@@ -315,7 +313,7 @@ function(tint_fuzzer_compile_options TARGET)
 endfunction()
 
 if(TINT_ENABLE_BREAK_IN_DEBUGGER)
-  set_source_files_properties(utils/debug/debugger.cc
+  set_source_files_properties(utils/ice/debugger.cc
     PROPERTIES COMPILE_DEFINITIONS "TINT_ENABLE_BREAK_IN_DEBUGGER=1")
 endif()
 
@@ -324,15 +322,17 @@ endif()
 ################################################################################
 if(TINT_BUILD_BENCHMARKS)
   set(SCRIPT "${TINT_ROOT_SOURCE_DIR}/src/tint/cmd/bench/generate_benchmark_inputs.py")
-  set(OUTPUT "${DAWN_BUILD_GEN_DIR}/src/tint/cmd/bench/benchmark_inputs.h")
-  set(ARGS ${Python3_EXECUTABLE} ${SCRIPT} ${OUTPUT})
+  set(GENERATED_HEADER_REL_PATH "gen/src/tint/cmd/bench/benchmark_inputs.h")
+  set(GENERATED_HEADER_ABS_PATH "${Dawn_BINARY_DIR}/${GENERATED_HEADER_REL_PATH}")
+  set(ARGS ${Python3_EXECUTABLE} ${SCRIPT} header ${Dawn_BINARY_DIR} ${GENERATED_HEADER_REL_PATH})
   add_custom_command(
     COMMAND ${ARGS}
-    OUTPUT ${OUTPUT}
+    OUTPUT ${GENERATED_HEADER_ABS_PATH}
     DEPENDS ${SCRIPT}
-    COMMENT "Tint benchmark: Generating ${OUTPUT}."
+    DEPFILE ${GENERATED_HEADER_ABS_PATH}.d
+    COMMENT "Tint benchmark: Generating ${GENERATED_HEADER_ABS_PATH}."
   )
-  add_custom_target(tint_generate_benchmark_inputs DEPENDS ${OUTPUT})
+  add_custom_target(tint_generate_benchmark_inputs DEPENDS ${GENERATED_HEADER_ABS_PATH})
 endif()
 
 ################################################################################
@@ -573,6 +573,8 @@ function(tint_target_add_external_dependencies TARGET KIND)
       target_link_libraries(${TARGET} PRIVATE Threads::Threads)
     elseif(${DEPENDENCY} STREQUAL "winsock")
       target_link_libraries(${TARGET} PRIVATE ws2_32)
+    elseif(${DEPENDENCY} STREQUAL "src_utils")
+      target_link_libraries(${TARGET} PRIVATE dawn_shared_utils)
     else()
       message(FATAL_ERROR "unhandled external dependency ${DEPENDENCY}")
     endif()

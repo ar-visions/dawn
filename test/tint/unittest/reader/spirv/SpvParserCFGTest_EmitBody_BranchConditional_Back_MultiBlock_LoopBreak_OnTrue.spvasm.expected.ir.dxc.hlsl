@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 
 static uint var_1 = 0u;
@@ -26,3 +26,5 @@ hlsl.hlsl:17: error: Loop must have break.
 Validation failed.
 
 
+
+tint executable returned error: exit status 1

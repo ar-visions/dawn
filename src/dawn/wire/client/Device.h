@@ -58,18 +58,15 @@ class Device final : public RefCountedWithExternalCount<ObjectWithEventsBase> {
     void SetFeatures(const WGPUFeatureName* features, uint32_t featuresCount);
 
     bool IsAlive() const;
-    WGPUFuture GetDeviceLostFuture();
 
-    void HandleError(WGPUErrorType errorType, const char* message);
-    void HandleLogging(WGPULoggingType loggingType, const char* message);
-    void HandleDeviceLost(WGPUDeviceLostReason reason, const char* message);
+    void HandleError(WGPUErrorType errorType, WGPUStringView message);
+    void HandleLogging(WGPULoggingType loggingType, WGPUStringView message);
+    void HandleDeviceLost(WGPUDeviceLostReason reason, WGPUStringView message);
     class DeviceLostEvent;
 
     // WebGPU API
-    void SetUncapturedErrorCallback(WGPUErrorCallback errorCallback, void* errorUserdata);
     void SetLoggingCallback(WGPULoggingCallback errorCallback, void* errorUserdata);
-    void SetDeviceLostCallback(WGPUDeviceLostCallback errorCallback, void* errorUserdata);
-    void InjectError(WGPUErrorType type, const char* message);
+    void InjectError(WGPUErrorType type, WGPUStringView message);
     void PopErrorScope(WGPUErrorCallback callback, void* userdata);
     WGPUFuture PopErrorScopeF(const WGPUPopErrorScopeCallbackInfo& callbackInfo);
     WGPUFuture PopErrorScope2(const WGPUPopErrorScopeCallbackInfo2& callbackInfo);
@@ -96,8 +93,10 @@ class Device final : public RefCountedWithExternalCount<ObjectWithEventsBase> {
         const WGPUCreateRenderPipelineAsyncCallbackInfo2& callbackInfo);
 
     WGPUStatus GetLimits(WGPUSupportedLimits* limits) const;
+    WGPUFuture GetLostFuture();
     bool HasFeature(WGPUFeatureName feature) const;
-    size_t EnumerateFeatures(WGPUFeatureName* features) const;
+    void GetFeatures(WGPUSupportedFeatures* features) const;
+    WGPUStatus GetAdapterInfo(WGPUAdapterInfo* info) const;
     WGPUAdapter GetAdapter() const;
     WGPUQueue GetQueue();
 
@@ -113,14 +112,9 @@ class Device final : public RefCountedWithExternalCount<ObjectWithEventsBase> {
 
     LimitsAndFeatures mLimitsAndFeatures;
 
-    // TODO(crbug.com/dawn/2465): This can probably just be the future id once SetDeviceLostCallback
-    // is deprecated, and the callback and userdata moved into the DeviceLostEvent.
     struct DeviceLostInfo {
         FutureID futureID = kNullFutureID;
         std::unique_ptr<TrackedEvent> event = nullptr;
-        WGPUDeviceLostCallback2 callback = nullptr;
-        raw_ptr<void> userdata1 = nullptr;
-        raw_ptr<void> userdata2 = nullptr;
     };
     DeviceLostInfo mDeviceLostInfo;
 

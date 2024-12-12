@@ -38,7 +38,6 @@
 #endif
 
 #if TINT_BUILD_WGSL_WRITER
-#include "src/tint/lang/wgsl/writer/ir_to_program/ir_to_program.h"
 #include "src/tint/lang/wgsl/writer/writer.h"
 #endif
 
@@ -47,11 +46,11 @@
 #endif
 
 #include "src/tint/utils/diagnostic/formatter.h"
+#include "src/tint/utils/rtti/traits.h"
 #include "src/tint/utils/text/string.h"
 #include "src/tint/utils/text/styled_text.h"
 #include "src/tint/utils/text/styled_text_printer.h"
 #include "src/tint/utils/text/text_style.h"
-#include "src/tint/utils/traits/traits.h"
 
 namespace tint::cmd {
 namespace {
@@ -191,7 +190,6 @@ ProgramInfo LoadProgramInfo(const LoadProgramOptions& opts) {
 
                 tint::wgsl::reader::Options options;
                 options.allowed_features = tint::wgsl::AllowedFeatures::Everything();
-                options.mode = opts.mode;
 
                 auto file = std::make_unique<tint::Source::File>(
                     opts.filename, std::string(data.begin(), data.end()));
@@ -577,6 +575,10 @@ std::string OverrideTypeToString(tint::inspector::Override::Type type) {
             return "i32";
     }
     return "unknown";
+}
+
+bool IsStdout(const std::string& name) {
+    return name.empty() || name == "-";
 }
 
 }  // namespace tint::cmd

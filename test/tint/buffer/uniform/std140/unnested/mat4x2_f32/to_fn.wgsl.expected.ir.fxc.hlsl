@@ -8,7 +8,7 @@ void a(float4x2 m) {
 void b(float2 v) {
 }
 
-void c(float f) {
+void c(float f_1) {
 }
 
 float4x2 v_1(uint start_byte_offset) {
@@ -28,6 +28,6 @@ void f() {
   b(asfloat(u[0u].zw));
   b(asfloat(u[0u].zw).yx);
   c(asfloat(u[0u].z));
-  c(asfloat(u[0u].zw).yx[0u]);
+  c(asfloat(u[0u].zw).yx.x);
 }
 

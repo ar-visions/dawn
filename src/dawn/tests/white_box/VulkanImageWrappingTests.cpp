@@ -276,17 +276,6 @@ TEST_P(VulkanImageWrappingValidationTests, DoubleSignalSemaphoreExport) {
     ASSERT_EQ(exportInfo.semaphores.size(), 0u);
 }
 
-// Test an error occurs if we try to export the signal semaphore from a normal texture
-TEST_P(VulkanImageWrappingValidationTests, NormalTextureSignalSemaphoreExport) {
-    wgpu::Texture texture = device.CreateTexture(&defaultDescriptor);
-    ASSERT_NE(texture.Get(), nullptr);
-
-    ExternalImageExportInfoVkForTesting exportInfo = GetExternalImageExportInfo();
-    ASSERT_DEVICE_ERROR(bool success = mBackend->ExportImage(texture, &exportInfo));
-    ASSERT_FALSE(success);
-    ASSERT_EQ(exportInfo.semaphores.size(), 0u);
-}
-
 // Test an error occurs if we try to export the signal semaphore from a destroyed texture
 TEST_P(VulkanImageWrappingValidationTests, DestroyedTextureSignalSemaphoreExport) {
     wgpu::Texture texture =
@@ -424,6 +413,9 @@ TEST_P(VulkanImageWrappingUsageTests, ClearImageAcrossDevices) {
 TEST_P(VulkanImageWrappingUsageTests, ClearTwoImagesAcrossDevices) {
     // TODO(crbug.com/341124484): Fails on Linux/Intel UHD 770.
     DAWN_SUPPRESS_TEST_IF(IsLinux() && IsBackendValidationEnabled() && IsIntelGen12());
+
+    // crbug.com/358408563
+    DAWN_SUPPRESS_TEST_IF(IsLinux() && IsNvidia() && IsVulkan() && IsBackendValidationEnabled());
 
     static_assert(kTestTexturesCount >= 2);
 
@@ -1005,6 +997,9 @@ class VulkanImageWrappingMultithreadTests : public VulkanImageWrappingUsageTests
 TEST_P(VulkanImageWrappingMultithreadTests, WrapAndClear_OnMultipleThreads) {
     // TODO(crbug.com/341124484): Crashes on Linux/Intel UHD 770.
     DAWN_SUPPRESS_TEST_IF(IsLinux() && IsBackendValidationEnabled() && IsIntelGen12());
+
+    // crbug.com/358408563
+    DAWN_SUPPRESS_TEST_IF(IsLinux() && IsNvidia() && IsVulkan() && IsBackendValidationEnabled());
 
     std::vector<std::unique_ptr<ExternalTexture>> testTextures(10);
     for (auto& testTexture : testTextures) {

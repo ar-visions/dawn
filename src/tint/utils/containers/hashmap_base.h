@@ -39,7 +39,7 @@
 #include "src/tint/utils/math/hash.h"
 #include "src/tint/utils/math/math.h"
 #include "src/tint/utils/memory/aligned_storage.h"
-#include "src/tint/utils/traits/traits.h"
+#include "src/tint/utils/rtti/traits.h"
 
 namespace tint {
 
@@ -651,7 +651,7 @@ class HashmapBase {
             constexpr size_t kAllocationSize = RoundUp(alignof(Node), sizeof(Allocation));
             auto* memory =
                 reinterpret_cast<std::byte*>(malloc(kAllocationSize + sizeof(Node) * count));
-            if (TINT_UNLIKELY(!memory)) {
+            if (DAWN_UNLIKELY(!memory)) {
                 TINT_ICE() << "out of memory";
                 return;
             }

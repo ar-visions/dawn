@@ -43,6 +43,7 @@
 #include "dawn/common/Log.h"
 #include "dawn/common/Math.h"
 #include "dawn/common/Platform.h"
+#include "dawn/common/StringViewUtils.h"
 #include "dawn/common/SystemUtils.h"
 #include "dawn/dawn_proc.h"
 #include "dawn/native/Device.h"
@@ -456,8 +457,10 @@ void DawnTestEnvironment::SelectPreferredAdapterProperties(const native::Instanc
             for (bool compatibilityMode : {false, true}) {
                 wgpu::RequestAdapterOptions adapterOptions;
                 adapterOptions.compatibilityMode = compatibilityMode;
-                for (const native::Adapter& adapter :
+                // TODO(347047627): Use a webgpu.h version of enumerateAdapters
+                for (const native::Adapter& nativeAdapter :
                      instance->EnumerateAdapters(&adapterOptions)) {
+                    wgpu::Adapter adapter = wgpu::Adapter(nativeAdapter.Get());
                     wgpu::AdapterInfo info;
                     adapter.GetInfo(&info);
 
@@ -475,7 +478,9 @@ void DawnTestEnvironment::SelectPreferredAdapterProperties(const native::Instanc
     for (bool compatibilityMode : {false, true}) {
         wgpu::RequestAdapterOptions adapterOptions;
         adapterOptions.compatibilityMode = compatibilityMode;
-        for (const native::Adapter& adapter : instance->EnumerateAdapters(&adapterOptions)) {
+        // TODO(347047627): Use a webgpu.h version of enumerateAdapters
+        for (const native::Adapter& nativeAdapter : instance->EnumerateAdapters(&adapterOptions)) {
+            wgpu::Adapter adapter = wgpu::Adapter(nativeAdapter.Get());
             wgpu::AdapterInfo info;
             adapter.GetInfo(&info);
 
@@ -727,32 +732,31 @@ DawnTestBase::DawnTestBase(const AdapterTestParam& param) : mParam(param) {
         DAWN_ASSERT(callbackInfo.mode == WGPUCallbackMode_AllowSpontaneous);
 
         // Use the required toggles of test case when creating adapter.
-        const auto& enabledToggles = gCurrentTest->mParam.forceEnabledWorkarounds;
-        const auto& disabledToggles = gCurrentTest->mParam.forceDisabledWorkarounds;
-        wgpu::DawnTogglesDescriptor adapterToggles;
-        adapterToggles.enabledToggleCount = enabledToggles.size();
-        adapterToggles.enabledToggles = enabledToggles.data();
-        adapterToggles.disabledToggleCount = disabledToggles.size();
-        adapterToggles.disabledToggles = disabledToggles.data();
+        ParamTogglesHelper deviceTogglesHelper(gCurrentTest->mParam, native::ToggleStage::Adapter);
 
         wgpu::RequestAdapterOptions adapterOptions;
-        adapterOptions.nextInChain = &adapterToggles;
+        adapterOptions.nextInChain = &deviceTogglesHelper.togglesDesc;
         adapterOptions.backendType = gCurrentTest->mParam.adapterProperties.backendType;
         adapterOptions.compatibilityMode = gCurrentTest->mParam.adapterProperties.compatibilityMode;
 
         // Find the adapter that exactly matches our adapter properties.
+        // TODO(347047627): Use a webgpu.h version of enumerateAdapters
         const auto& adapters = gTestEnv->GetInstance()->EnumerateAdapters(&adapterOptions);
         const auto& it =
             std::find_if(adapters.begin(), adapters.end(), [&](const native::Adapter& candidate) {
-                wgpu::AdapterInfo info;
-                candidate.GetInfo(&info);
+                WGPUAdapterInfo info = {};
+                native::GetProcs().adapterGetInfo(candidate.Get(), &info);
 
                 const auto& param = gCurrentTest->mParam;
-                return (param.adapterProperties.selected &&
-                        info.deviceID == param.adapterProperties.deviceID &&
-                        info.vendorID == param.adapterProperties.vendorID &&
-                        info.adapterType == param.adapterProperties.adapterType &&
-                        strcmp(info.device, param.adapterProperties.name.c_str()) == 0);
+                bool result =
+                    (param.adapterProperties.selected &&
+                     info.deviceID == param.adapterProperties.deviceID &&
+                     info.vendorID == param.adapterProperties.vendorID &&
+                     info.adapterType == native::ToAPI(param.adapterProperties.adapterType) &&
+                     std::string_view(info.device.data, info.device.length) ==
+                         param.adapterProperties.name);
+                native::GetProcs().adapterInfoFreeMembers(info);
+                return result;
             });
         DAWN_ASSERT(it != adapters.end());
         gCurrentTest->mBackendAdapter = *it;
@@ -760,7 +764,7 @@ DawnTestBase::DawnTestBase(const AdapterTestParam& param) : mParam(param) {
         WGPUAdapter cAdapter = it->Get();
         DAWN_ASSERT(cAdapter);
         native::GetProcs().adapterAddRef(cAdapter);
-        callbackInfo.callback(WGPURequestAdapterStatus_Success, cAdapter, nullptr,
+        callbackInfo.callback(WGPURequestAdapterStatus_Success, cAdapter, kEmptyOutputStringView,
                               callbackInfo.userdata1, callbackInfo.userdata2);
 
         // Returning a placeholder future that we should never be waiting on.
@@ -784,7 +788,7 @@ DawnTestBase::DawnTestBase(const AdapterTestParam& param) : mParam(param) {
         DAWN_ASSERT(cDevice != nullptr);
 
         gCurrentTest->mLastCreatedBackendDevice = cDevice;
-        callbackInfo.callback(WGPURequestDeviceStatus_Success, cDevice, nullptr,
+        callbackInfo.callback(WGPURequestDeviceStatus_Success, cDevice, kEmptyOutputStringView,
                               callbackInfo.userdata1, callbackInfo.userdata2);
 
         // Returning a placeholder future that we should never be waiting on.
@@ -874,7 +878,8 @@ bool DawnTestBase::IsNvidia() const {
 }
 
 bool DawnTestBase::IsQualcomm() const {
-    return gpu_info::IsQualcomm(mParam.adapterProperties.vendorID);
+    return gpu_info::IsQualcomm_PCI(mParam.adapterProperties.vendorID) ||
+           gpu_info::IsQualcomm_ACPI(mParam.adapterProperties.vendorID);
 }
 
 bool DawnTestBase::IsSwiftshader() const {
@@ -994,6 +999,10 @@ bool DawnTestBase::IsCompatibilityMode() const {
     return mParam.adapterProperties.compatibilityMode;
 }
 
+bool DawnTestBase::IsCPU() const {
+    return mParam.adapterProperties.adapterType == wgpu::AdapterType::CPU;
+}
+
 bool DawnTestBase::RunSuppressedTests() const {
     return gTestEnv->RunSuppressedTests();
 }
@@ -1077,14 +1086,13 @@ wgpu::SupportedLimits DawnTestBase::GetSupportedLimits() {
 
 bool DawnTestBase::SupportsFeatures(const std::vector<wgpu::FeatureName>& features) {
     DAWN_ASSERT(mBackendAdapter);
-    std::vector<wgpu::FeatureName> supportedFeatures;
-    uint32_t count = native::GetProcs().adapterEnumerateFeatures(mBackendAdapter.Get(), nullptr);
-    supportedFeatures.resize(count);
-    native::GetProcs().adapterEnumerateFeatures(
-        mBackendAdapter.Get(), reinterpret_cast<WGPUFeatureName*>(&supportedFeatures[0]));
+    wgpu::SupportedFeatures supportedFeatures;
+    native::GetProcs().adapterGetFeatures(
+        mBackendAdapter.Get(), reinterpret_cast<WGPUSupportedFeatures*>(&supportedFeatures));
 
     std::unordered_set<wgpu::FeatureName> supportedSet;
-    for (wgpu::FeatureName f : supportedFeatures) {
+    for (uint32_t i = 0; i < supportedFeatures.featureCount; ++i) {
+        wgpu::FeatureName f = supportedFeatures.features[i];
         supportedSet.insert(f);
     }
 
@@ -1112,11 +1120,6 @@ uint32_t DawnTestBase::GetDeviceCreationDeprecationWarningExpectation(
     for (uint32_t i = 0; i < descriptor.requiredFeatureCount; ++i) {
         requiredFeatureSet.insert(descriptor.requiredFeatures[i]);
     }
-    // ChromiumExperimentalSubgroups feature is deprecated.
-    // TODO(349125474): Remove deprecated ChromiumExperimentalSubgroups.
-    if (requiredFeatureSet.count(wgpu::FeatureName::ChromiumExperimentalSubgroups)) {
-        expectedDeprecatedCount++;
-    }
 
     return expectedDeprecatedCount;
 }
@@ -1130,7 +1133,8 @@ WGPUDevice DawnTestBase::CreateDeviceImpl(std::string isolationKey,
     }
 
     wgpu::SupportedLimits supportedLimits;
-    mBackendAdapter.GetLimits(reinterpret_cast<WGPUSupportedLimits*>(&supportedLimits));
+    native::GetProcs().adapterGetLimits(mBackendAdapter.Get(),
+                                        reinterpret_cast<WGPUSupportedLimits*>(&supportedLimits));
     wgpu::RequiredLimits requiredLimits = GetRequiredLimits(supportedLimits);
 
     wgpu::DeviceDescriptor deviceDescriptor =
@@ -1185,7 +1189,7 @@ wgpu::Device DawnTestBase::CreateDevice(std::string isolationKey) {
 
     adapter.RequestDevice(&deviceDesc, wgpu::CallbackMode::AllowSpontaneous,
                           [&apiDevice](wgpu::RequestDeviceStatus, wgpu::Device result,
-                                       const char*) { apiDevice = std::move(result); });
+                                       wgpu::StringView) { apiDevice = std::move(result); });
     FlushWire();
     DAWN_ASSERT(apiDevice);
 
@@ -1195,19 +1199,20 @@ wgpu::Device DawnTestBase::CreateDevice(std::string isolationKey) {
         .Times(AtMost(1));
 
     apiDevice.SetLoggingCallback(
-        [](WGPULoggingType type, char const* message, void*) {
+        [](WGPULoggingType type, WGPUStringView message, void*) {
+            std::string_view view = {message.data, message.length};
             switch (type) {
                 case WGPULoggingType_Verbose:
-                    DebugLog() << message;
+                    DebugLog() << view;
                     break;
                 case WGPULoggingType_Warning:
-                    WarningLog() << message;
+                    WarningLog() << view;
                     break;
                 case WGPULoggingType_Error:
-                    ErrorLog() << message;
+                    ErrorLog() << view;
                     break;
                 default:
-                    InfoLog() << message;
+                    InfoLog() << view;
                     break;
             }
         },
@@ -1242,7 +1247,7 @@ void DawnTestBase::SetUp() {
     // RequestAdapter is overriden to ignore RequestAdapterOptions, and select based on test params.
     instance.RequestAdapter(
         nullptr, wgpu::CallbackMode::AllowSpontaneous,
-        [](wgpu::RequestAdapterStatus status, wgpu::Adapter result, char const* message,
+        [](wgpu::RequestAdapterStatus status, wgpu::Adapter result, wgpu::StringView message,
            wgpu::Adapter* userdata) -> void { *userdata = std::move(result); },
         &adapter);
     FlushWire();
@@ -1678,7 +1683,7 @@ void DawnTestBase::MapAsyncAndWait(const wgpu::Buffer& buffer,
     if (!UsesWire()) {
         // We use a new mock callback here so that the validation on the call happens as soon as the
         // scope of this call ends.
-        MockCppCallback<void (*)(wgpu::MapAsyncStatus, const char*)> mockCb;
+        MockCppCallback<void (*)(wgpu::MapAsyncStatus, wgpu::StringView)> mockCb;
         EXPECT_CALL(mockCb, Call(wgpu::MapAsyncStatus::Success, _)).Times(1);
 
         ASSERT_EQ(
@@ -1689,7 +1694,7 @@ void DawnTestBase::MapAsyncAndWait(const wgpu::Buffer& buffer,
     } else {
         bool done = false;
         buffer.MapAsync(mapMode, offset, size, wgpu::CallbackMode::AllowProcessEvents,
-                        [&done](wgpu::MapAsyncStatus status, const char*) {
+                        [&done](wgpu::MapAsyncStatus status, wgpu::StringView) {
                             ASSERT_EQ(status, wgpu::MapAsyncStatus::Success);
                             done = true;
                         });
@@ -1768,7 +1773,7 @@ void DawnTestBase::MapSlotsSynchronously() {
 
         slot.buffer.MapAsync(wgpu::MapMode::Read, 0, wgpu::kWholeMapSize,
                              wgpu::CallbackMode::AllowProcessEvents,
-                             [this, &slot](wgpu::MapAsyncStatus status, const char*) {
+                             [this, &slot](wgpu::MapAsyncStatus status, wgpu::StringView) {
                                  DAWN_ASSERT(status == wgpu::MapAsyncStatus::Success);
                                  Mutex::AutoLock lg(&mMutex);
 

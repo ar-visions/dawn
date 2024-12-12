@@ -2,11 +2,11 @@
 using namespace metal;
 
 struct Constants {
-  uint zero;
+  /* 0x0000 */ uint zero;
 };
 
 struct Result {
-  uint value;
+  /* 0x0000 */ uint value;
 };
 
 template<typename T, size_t N>
@@ -22,7 +22,7 @@ struct tint_array {
 };
 
 struct TestData {
-  tint_array<atomic_int, 3> data;
+  /* 0x0000 */ tint_array<atomic_int, 3> data;
 };
 
 struct tint_module_vars_struct {
@@ -32,7 +32,7 @@ struct tint_module_vars_struct {
 };
 
 int runTest(tint_module_vars_struct tint_module_vars) {
-  return atomic_load_explicit((&(*tint_module_vars.s).data[(0u + uint((*tint_module_vars.constants).zero))]), memory_order_relaxed);
+  return atomic_load_explicit((&(*tint_module_vars.s).data[min((0u + uint((*tint_module_vars.constants).zero)), 2u)]), memory_order_relaxed);
 }
 
 kernel void tint_symbol(const constant Constants* constants [[buffer(0)]], device Result* result [[buffer(1)]], device TestData* s [[buffer(2)]]) {

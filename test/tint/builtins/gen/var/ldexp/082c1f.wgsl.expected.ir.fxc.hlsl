@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 struct VertexOutput {
   float4 pos;
@@ -14,7 +14,7 @@ struct vertex_main_outputs {
 RWByteAddressBuffer prevent_dce : register(u0);
 float16_t ldexp_082c1f() {
   float16_t arg_0 = float16_t(1.0h);
-  float16_t res = ldexp(arg_0, 1);
+  float16_t res = ldexp(arg_0, int(1));
   return res;
 }
 
@@ -44,5 +44,7 @@ vertex_main_outputs vertex_main() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x000001B1C318DF90(3,3-11): error X3000: unrecognized identifier 'float16_t'
+<scrubbed_path>(3,3-11): error X3000: unrecognized identifier 'float16_t'
 
+
+tint executable returned error: exit status 1

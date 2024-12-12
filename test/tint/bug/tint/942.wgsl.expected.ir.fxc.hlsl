@@ -37,9 +37,10 @@ void main_inner(uint3 WorkGroupID, uint3 LocalInvocationID, uint tint_local_inde
   }
   GroupMemoryBarrierWithGroupSync();
   uint filterOffset = tint_div_u32((params[0u].x - 1u), 2u);
-  Texture2D<float4> v_2 = inputTex;
+  uint3 v_2 = (0u).xxx;
+  inputTex.GetDimensions(0u, v_2.x, v_2.y, v_2.z);
   uint3 v_3 = (0u).xxx;
-  v_2.GetDimensions(uint(0), v_3[0u], v_3[1u], v_3[2u]);
+  inputTex.GetDimensions(uint(min(uint(int(0)), (v_2.z - 1u))), v_3.x, v_3.y, v_3.z);
   uint2 dims = v_3.xy;
   uint2 v_4 = ((WorkGroupID.xy * uint2(params[0u].y, 4u)) + (LocalInvocationID.xy * uint2(4u, 1u)));
   uint2 baseIndex = (v_4 - uint2(filterOffset, 0u));
@@ -61,12 +62,11 @@ void main_inner(uint3 WorkGroupID, uint3 LocalInvocationID, uint tint_local_inde
           if ((flip[0u].x != 0u)) {
             loadIndex = loadIndex.yx;
           }
-          float3 v_5 = tile[r][((4u * LocalInvocationID[0u]) + c)];
-          Texture2D<float4> v_6 = inputTex;
-          SamplerState v_7 = samp;
-          float2 v_8 = (float2(loadIndex) + (0.25f).xx);
-          float2 v_9 = (v_8 / float2(dims));
-          v_5 = v_6.SampleLevel(v_7, v_9, float(0.0f)).xyz;
+          uint v_5 = min(r, 3u);
+          uint v_6 = min(((4u * LocalInvocationID.x) + c), 255u);
+          float2 v_7 = (float2(loadIndex) + (0.25f).xx);
+          float2 v_8 = (v_7 / float2(dims));
+          tile[v_5][v_6] = inputTex.SampleLevel(samp, v_8, float(0.0f)).xyz;
           {
             c = (c + 1u);
           }
@@ -98,41 +98,50 @@ void main_inner(uint3 WorkGroupID, uint3 LocalInvocationID, uint tint_local_inde
           if ((flip[0u].x != 0u)) {
             writeIndex = writeIndex.yx;
           }
-          uint center = ((4u * LocalInvocationID[0u]) + c);
-          bool v_10 = false;
+          uint center = ((4u * LocalInvocationID.x) + c);
+          bool v_9 = false;
           if ((center >= filterOffset)) {
-            v_10 = (center < (256u - filterOffset));
+            v_9 = (center < (256u - filterOffset));
+          } else {
+            v_9 = false;
+          }
+          bool v_10 = false;
+          if (v_9) {
+            v_10 = all((writeIndex < dims));
           } else {
             v_10 = false;
           }
-          bool v_11 = false;
           if (v_10) {
-            v_11 = all((writeIndex < dims));
-          } else {
-            v_11 = false;
-          }
-          if (v_11) {
             float3 acc = (0.0f).xxx;
             {
+              uint2 tint_loop_idx = (0u).xx;
               uint f = 0u;
               while(true) {
+                if (all((tint_loop_idx == (4294967295u).xx))) {
+                  break;
+                }
                 if ((f < params[0u].x)) {
                 } else {
                   break;
                 }
                 uint i = ((center + f) - filterOffset);
-                float3 v_12 = acc;
-                float v_13 = (1.0f / float(params[0u].x));
-                acc = (v_12 + (v_13 * tile[r][i]));
+                float3 v_11 = acc;
+                float v_12 = (1.0f / float(params[0u].x));
+                uint v_13 = min(r, 3u);
+                uint v_14 = min(i, 255u);
+                acc = (v_11 + (v_12 * tile[v_13][v_14]));
                 {
+                  uint tint_low_inc = (tint_loop_idx.x + 1u);
+                  tint_loop_idx.x = tint_low_inc;
+                  uint tint_carry = uint((tint_low_inc == 0u));
+                  tint_loop_idx.y = (tint_loop_idx.y + tint_carry);
                   f = (f + 1u);
                 }
                 continue;
               }
             }
-            RWTexture2D<float4> v_14 = outputTex;
             uint2 v_15 = writeIndex;
-            v_14[v_15] = float4(acc, 1.0f);
+            outputTex[v_15] = float4(acc, 1.0f);
           }
           {
             c = (c + 1u);

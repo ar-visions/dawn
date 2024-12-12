@@ -72,6 +72,8 @@ enum class Toggle {
     DisallowSpirv,
     DumpShaders,
     DisableWorkgroupInit,
+    DisableDemoteToHelper,
+    VulkanUseDemoteToHelperInvocationExtension,
     DisableSymbolRenaming,
     UseUserDefinedLabelsInBackend,
     UsePlaceholderFragmentInVertexOnlyPipeline,
@@ -134,6 +136,11 @@ enum class Toggle {
     UsePackedDepth24UnormStencil8Format,
     D3D12ForceStencilComponentReplicateSwizzle,
     D3D12ExpandShaderResourceStateTransitionsToCopySource,
+    GLDepthBiasModifier,
+    VulkanMonolithicPipelineCache,
+    MetalSerializeTimestampGenerationAndResolution,
+    D3D12RelaxMinSubgroupSizeTo8,
+    D3D12RelaxBufferTextureCopyPitchAndOffsetAlignment,
 
     // Unresolved issues.
     NoWorkaroundSampleMaskBecomesZeroForAllButLastColorTarget,

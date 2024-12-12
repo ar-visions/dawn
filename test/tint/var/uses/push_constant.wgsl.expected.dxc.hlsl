@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 
 enable chromium_experimental_push_constant;
@@ -41,3 +41,5 @@ fn main4() {
 }
 
 Failed to generate: error: unhandled address space push_constant
+
+tint executable returned error: exit status 1

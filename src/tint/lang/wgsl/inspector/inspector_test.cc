@@ -373,9 +373,11 @@ TEST_F(InspectorGetEntryPointTest, WorkgroupStorageSizeEmpty) {
 
 TEST_F(InspectorGetEntryPointTest, WorkgroupStorageSizeSimple) {
     AddWorkgroupStorage("wg_f32", ty.f32());
+    AddWorkgroupStorage("wg_i32", ty.i32());
     MakePlainGlobalReferenceBodyFunction("f32_func", "wg_f32", ty.f32(), tint::Empty);
+    MakePlainGlobalReferenceBodyFunction("i32_func", "wg_i32", ty.i32(), tint::Empty);
 
-    MakeCallerBodyFunction("ep_func", Vector{std::string("f32_func")},
+    MakeCallerBodyFunction("ep_func", Vector{std::string("f32_func"), "i32_func"},
                            Vector{
                                Stage(ast::PipelineStage::kCompute),
                                WorkgroupSize(1_i),
@@ -386,7 +388,7 @@ TEST_F(InspectorGetEntryPointTest, WorkgroupStorageSizeSimple) {
     ASSERT_FALSE(inspector.has_error()) << inspector.error();
 
     ASSERT_EQ(1u, result.size());
-    EXPECT_EQ(16u, result[0].workgroup_storage_size);
+    EXPECT_EQ(32u, result[0].workgroup_storage_size);
 }
 
 TEST_F(InspectorGetEntryPointTest, WorkgroupStorageSizeCompoundTypes) {
@@ -1585,6 +1587,51 @@ TEST_F(InspectorGetEntryPointTest, FragDepthStructReferenced) {
 
     ASSERT_EQ(1u, result.size());
     EXPECT_TRUE(result[0].frag_depth_used);
+}
+
+TEST_F(InspectorGetEntryPointTest, ClipDistancesReferenced) {
+    Enable(wgsl::Extension::kClipDistances);
+
+    Structure("out_struct", Vector{Member("inner_clip_distances", ty.array<f32, 8>(),
+                                          Vector{Builtin(core::BuiltinValue::kClipDistances)}),
+                                   Member("inner_position", ty.vec4<f32>(),
+                                          Vector{Builtin(core::BuiltinValue::kPosition)})});
+    Func("ep_func", tint::Empty, ty("out_struct"),
+         Vector{
+             Decl(Var("out_var", ty("out_struct"))),
+             Return("out_var"),
+         },
+         Vector{
+             Stage(ast::PipelineStage::kVertex),
+         });
+
+    Inspector& inspector = Build();
+
+    auto result = inspector.GetEntryPoints();
+
+    ASSERT_EQ(1u, result.size());
+    EXPECT_TRUE(result[0].clip_distances_size.has_value());
+    EXPECT_EQ(8u, *result[0].clip_distances_size);
+}
+
+TEST_F(InspectorGetEntryPointTest, ClipDistancesNotReferenced) {
+    Structure("out_struct", Vector{Member("inner_position", ty.vec4<f32>(),
+                                          Vector{Builtin(core::BuiltinValue::kPosition)})});
+    Func("ep_func", tint::Empty, ty("out_struct"),
+         Vector{
+             Decl(Var("out_var", ty("out_struct"))),
+             Return("out_var"),
+         },
+         Vector{
+             Stage(ast::PipelineStage::kVertex),
+         });
+
+    Inspector& inspector = Build();
+
+    auto result = inspector.GetEntryPoints();
+
+    ASSERT_EQ(1u, result.size());
+    EXPECT_FALSE(result[0].clip_distances_size.has_value());
 }
 
 TEST_F(InspectorGetEntryPointTest, ImplicitInterpolate) {

@@ -19,49 +19,71 @@ uint4 tint_v4f32_to_v4u32(float4 value) {
 
 void main_inner(uint3 GlobalInvocationID) {
   uint2 v = (0u).xx;
-  src.GetDimensions(v[0u], v[1u]);
+  src.GetDimensions(v.x, v.y);
   uint2 size = v;
   uint2 dstTexCoord = GlobalInvocationID.xy;
   uint2 srcTexCoord = dstTexCoord;
   if ((uniforms[0u].x == 1u)) {
-    srcTexCoord[1u] = ((size.y - dstTexCoord.y) - 1u);
+    srcTexCoord.y = ((size.y - dstTexCoord.y) - 1u);
   }
-  Texture2D<float4> v_1 = src;
-  int2 v_2 = int2(srcTexCoord);
-  float4 srcColor = float4(v_1.Load(int3(v_2, int(0))));
-  Texture2D<float4> v_3 = tint_symbol;
-  int2 v_4 = int2(dstTexCoord);
-  float4 dstColor = float4(v_3.Load(int3(v_4, int(0))));
+  uint2 v_1 = srcTexCoord;
+  uint3 v_2 = (0u).xxx;
+  src.GetDimensions(0u, v_2.x, v_2.y, v_2.z);
+  uint v_3 = min(uint(int(0)), (v_2.z - 1u));
+  uint3 v_4 = (0u).xxx;
+  src.GetDimensions(uint(v_3), v_4.x, v_4.y, v_4.z);
+  int2 v_5 = int2(min(v_1, (v_4.xy - (1u).xx)));
+  float4 srcColor = float4(src.Load(int3(v_5, int(v_3))));
+  uint2 v_6 = dstTexCoord;
+  uint3 v_7 = (0u).xxx;
+  tint_symbol.GetDimensions(0u, v_7.x, v_7.y, v_7.z);
+  uint v_8 = min(uint(int(0)), (v_7.z - 1u));
+  uint3 v_9 = (0u).xxx;
+  tint_symbol.GetDimensions(uint(v_8), v_9.x, v_9.y, v_9.z);
+  int2 v_10 = int2(min(v_6, (v_9.xy - (1u).xx)));
+  float4 dstColor = float4(tint_symbol.Load(int3(v_10, int(v_8))));
   bool success = true;
   uint4 srcColorBits = (0u).xxxx;
   uint4 dstColorBits = tint_v4f32_to_v4u32(dstColor);
   {
+    uint2 tint_loop_idx = (0u).xx;
     uint i = 0u;
     while(true) {
+      if (all((tint_loop_idx == (4294967295u).xx))) {
+        break;
+      }
       if ((i < uniforms[0u].w)) {
       } else {
         break;
       }
-      uint v_5 = i;
-      srcColorBits[v_5] = ConvertToFp16FloatValue(srcColor[i]);
-      bool v_6 = false;
+      uint v_11 = i;
+      srcColorBits[min(v_11, 3u)] = ConvertToFp16FloatValue(srcColor[min(i, 3u)]);
+      bool v_12 = false;
       if (success) {
-        v_6 = (srcColorBits[i] == dstColorBits[i]);
+        v_12 = (srcColorBits[min(i, 3u)] == dstColorBits[min(i, 3u)]);
       } else {
-        v_6 = false;
+        v_12 = false;
       }
-      success = v_6;
+      success = v_12;
       {
+        uint tint_low_inc = (tint_loop_idx.x + 1u);
+        tint_loop_idx.x = tint_low_inc;
+        uint tint_carry = uint((tint_low_inc == 0u));
+        tint_loop_idx.y = (tint_loop_idx.y + tint_carry);
         i = (i + 1u);
       }
       continue;
     }
   }
-  uint outputIndex = ((GlobalInvocationID[1u] * uint(size.x)) + GlobalInvocationID[0u]);
+  uint outputIndex = ((GlobalInvocationID.y * uint(size.x)) + GlobalInvocationID.x);
   if (success) {
-    output.Store((0u + (uint(outputIndex) * 4u)), 1u);
+    uint v_13 = 0u;
+    output.GetDimensions(v_13);
+    output.Store((0u + (min(outputIndex, ((v_13 / 4u) - 1u)) * 4u)), 1u);
   } else {
-    output.Store((0u + (uint(outputIndex) * 4u)), 0u);
+    uint v_14 = 0u;
+    output.GetDimensions(v_14);
+    output.Store((0u + (min(outputIndex, ((v_14 / 4u) - 1u)) * 4u)), 0u);
   }
 }
 

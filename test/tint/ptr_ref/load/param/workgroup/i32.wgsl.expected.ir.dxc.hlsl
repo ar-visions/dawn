@@ -9,8 +9,8 @@ int func() {
 }
 
 void main_inner(uint tint_local_index) {
-  if ((tint_local_index == 0u)) {
-    S = 0;
+  if ((tint_local_index < 1u)) {
+    S = int(0);
   }
   GroupMemoryBarrierWithGroupSync();
   int r = func();

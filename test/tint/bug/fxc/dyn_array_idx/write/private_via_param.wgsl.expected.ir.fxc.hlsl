@@ -1,5 +1,3 @@
-SKIP: FAILED
-
 struct S {
   int data[64];
 };
@@ -11,15 +9,18 @@ cbuffer cbuffer_ubo : register(b0) {
 RWByteAddressBuffer result : register(u1);
 static S s = (S)0;
 void x(inout S p) {
-  p.data[asint(ubo[0u].x)] = 1;
+  int v = asint(ubo[0u].x);
+  uint v_1 = min(uint(v), 63u);
+  int tint_array_copy[64] = p.data;
+  uint v_2 = min(uint(v), 63u);
+  tint_array_copy[v_2] = int(1);
+  int v_3[64] = tint_array_copy;
+  p.data = v_3;
 }
 
 [numthreads(1, 1, 1)]
 void f() {
   x(s);
-  result.Store(0u, asuint(s.data[3]));
+  result.Store(0u, asuint(s.data[3u]));
 }
-
-FXC validation failure:
-c:\src\dawn\Shader@0x00000201C018C8B0(12,3-26): error X3500: array reference cannot be used as an l-value; not natively addressable
 

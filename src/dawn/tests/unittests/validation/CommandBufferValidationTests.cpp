@@ -27,10 +27,7 @@
 
 #include <gmock/gmock.h>
 
-#include "dawn/native/CommandEncoder.h"
-
 #include "dawn/tests/unittests/validation/ValidationTest.h"
-
 #include "dawn/utils/WGPUHelpers.h"
 
 namespace dawn {
@@ -352,7 +349,7 @@ TEST_F(CommandBufferValidationTest, InjectedValidateErrorStringView) {
     ASSERT_DEVICE_ERROR(encoder.Finish(), HasSubstr(sv));
 }
 
-// Test that calling inject validation error with various wgpu::NullableStringView produces
+// Test that calling inject validation error with various wgpu::StringView produces
 // an error which preserves the string.
 TEST_F(CommandBufferValidationTest, InjectedValidateErrorVariousStringTypes) {
     // Use strlen
@@ -417,81 +414,6 @@ TEST_F(CommandBufferValidationTest, InjectedValidateErrorVariousStringTypes) {
     }
 }
 
-TEST_F(CommandBufferValidationTest, DestroyEncoder) {
-    // Skip these tests if we are using wire because the destroy functionality is not exposed
-    // and needs to use a cast to call manually. We cannot test this in the wire case since the
-    // only way to trigger the destroy call is by losing all references which means we cannot
-    // call finish.
-    DAWN_SKIP_TEST_IF(UsesWire());
-    PlaceholderRenderPass placeholderRenderPass(device);
-
-    // Control case, command buffer ended after the pass is ended.
-    {
-        wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
-        wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&placeholderRenderPass);
-        pass.End();
-        encoder.Finish();
-    }
-
-    // Destroyed encoder with encoded commands should emit error on finish.
-    {
-        wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
-        wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&placeholderRenderPass);
-        pass.End();
-        native::FromAPI(encoder.Get())->Destroy();
-        ASSERT_DEVICE_ERROR(encoder.Finish(), HasSubstr("Destroyed encoder cannot be finished."));
-    }
-
-    // Destroyed encoder with encoded commands shouldn't emit an error if never finished.
-    {
-        wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
-        wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&placeholderRenderPass);
-        pass.End();
-        native::FromAPI(encoder.Get())->Destroy();
-    }
-
-    // Destroyed encoder should allow encoding, and emit error on finish.
-    {
-        wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
-        native::FromAPI(encoder.Get())->Destroy();
-        wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&placeholderRenderPass);
-        pass.End();
-        ASSERT_DEVICE_ERROR(encoder.Finish(), HasSubstr("Destroyed encoder cannot be finished."));
-    }
-
-    // Destroyed encoder should allow encoding and shouldn't emit an error if never finished.
-    {
-        wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
-        native::FromAPI(encoder.Get())->Destroy();
-        wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&placeholderRenderPass);
-        pass.End();
-    }
-
-    // Destroying a finished encoder should not emit any errors.
-    {
-        wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
-        wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&placeholderRenderPass);
-        pass.End();
-        encoder.Finish();
-        native::FromAPI(encoder.Get())->Destroy();
-    }
-
-    // Destroying an encoder twice should not emit any errors.
-    {
-        wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
-        native::FromAPI(encoder.Get())->Destroy();
-        native::FromAPI(encoder.Get())->Destroy();
-    }
-
-    // Destroying an encoder twice and then calling finish should fail.
-    {
-        wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
-        native::FromAPI(encoder.Get())->Destroy();
-        native::FromAPI(encoder.Get())->Destroy();
-        ASSERT_DEVICE_ERROR(encoder.Finish(), HasSubstr("Destroyed encoder cannot be finished."));
-    }
-}
-
 TEST_F(CommandBufferValidationTest, EncodeAfterDeviceDestroyed) {
     PlaceholderRenderPass placeholderRenderPass(device);
 
@@ -518,6 +440,15 @@ TEST_F(CommandBufferValidationTest, EncodeAfterDeviceDestroyed) {
         pass.End();
         encoder.Finish();
     }
+}
+
+// Test that an error is produced when encoding happens after ending a pass.
+TEST_F(CommandBufferValidationTest, EncodeAfterEndingPass) {
+    wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
+    wgpu::ComputePassEncoder pass = encoder.BeginComputePass();
+    pass.End();
+    pass.PushDebugGroup("Foo");
+    ASSERT_DEVICE_ERROR(encoder.Finish());
 }
 
 }  // anonymous namespace

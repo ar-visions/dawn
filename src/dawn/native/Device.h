@@ -123,16 +123,14 @@ class DeviceBase : public ErrorSink, public RefCountedWithExternalCount<RefCount
     // users as the respective error rather than causing a device loss instead.
     void HandleError(std::unique_ptr<ErrorData> error,
                      InternalErrorType additionalAllowedErrors = InternalErrorType::None,
-                     WGPUDeviceLostReason lost_reason = WGPUDeviceLostReason_Unknown);
+                     wgpu::DeviceLostReason lost_reason = wgpu::DeviceLostReason::Unknown);
 
     MaybeError ValidateObject(const ApiObjectBase* object) const;
 
-    // TODO(dawn:1702) Remove virtual when we mock the adapter.
-    virtual InstanceBase* GetInstance() const;
-
+    InstanceBase* GetInstance() const;
     AdapterBase* GetAdapter() const;
     PhysicalDeviceBase* GetPhysicalDevice() const;
-    virtual dawn::platform::Platform* GetPlatform() const;
+    dawn::platform::Platform* GetPlatform() const;
 
     // Returns the Format corresponding to the wgpu::TextureFormat or an error if the format
     // isn't a valid wgpu::TextureFormat or isn't supported by this device.
@@ -228,10 +226,6 @@ class DeviceBase : public ErrorSink, public RefCountedWithExternalCount<RefCount
         const ShaderModuleDescriptor* descriptor,
         const std::vector<tint::wgsl::Extension>& internalExtensions = {},
         std::unique_ptr<OwnedCompilationMessages>* compilationMessages = nullptr);
-    // Deprecated: this was the way to create a SwapChain when it was explicitly manipulated by the
-    // end user.
-    ResultOrError<Ref<SwapChainBase>> CreateSwapChain(Surface* surface,
-                                                      const SwapChainDescriptor* descriptor);
     ResultOrError<Ref<SwapChainBase>> CreateSwapChain(Surface* surface,
                                                       SwapChainBase* previousSwapChain,
                                                       const SurfaceConfiguration* config);
@@ -239,8 +233,6 @@ class DeviceBase : public ErrorSink, public RefCountedWithExternalCount<RefCount
     ResultOrError<Ref<TextureViewBase>> CreateTextureView(
         TextureBase* texture,
         const TextureViewDescriptor* descriptor = nullptr);
-
-    ResultOrError<wgpu::TextureUsage> GetSupportedSurfaceUsage(const Surface* surface) const;
 
     // Implementation of API object creation methods. DO NOT use them in a reentrant manner.
     BindGroupBase* APICreateBindGroup(const BindGroupDescriptor* descriptor);
@@ -279,16 +271,8 @@ class DeviceBase : public ErrorSink, public RefCountedWithExternalCount<RefCount
     SamplerBase* APICreateSampler(const SamplerDescriptor* descriptor);
     ShaderModuleBase* APICreateShaderModule(const ShaderModuleDescriptor* descriptor);
     ShaderModuleBase* APICreateErrorShaderModule(const ShaderModuleDescriptor* descriptor,
-                                                 const char* errorMessage) {
-        return APICreateErrorShaderModule2(descriptor, errorMessage);
-    }
-    ShaderModuleBase* APICreateErrorShaderModule2(const ShaderModuleDescriptor* descriptor,
-                                                  std::string_view errorMessage);
-    // TODO(crbug.com/dawn/2320): Remove after deprecation.
-    SwapChainBase* APICreateSwapChain(Surface* surface, const SwapChainDescriptor* descriptor);
+                                                  StringView errorMessage);
     TextureBase* APICreateTexture(const TextureDescriptor* descriptor);
-
-    wgpu::TextureUsage APIGetSupportedSurfaceUsage(Surface* surface);
 
     InternalPipelineStore* GetInternalPipelineStore();
 
@@ -304,12 +288,11 @@ class DeviceBase : public ErrorSink, public RefCountedWithExternalCount<RefCount
                                                  AHardwareBufferProperties* properties);
     wgpu::Status APIGetLimits(SupportedLimits* limits) const;
     bool APIHasFeature(wgpu::FeatureName feature) const;
-    size_t APIEnumerateFeatures(wgpu::FeatureName* features) const;
-    void APIInjectError(wgpu::ErrorType type, const char* message) {
-        // TODO(crbug.com/42241188): Remove const char* version of the method.
-        APIInjectError2(type, message);
-    }
-    void APIInjectError2(wgpu::ErrorType type, std::string_view message);
+    void APIGetFeatures(wgpu::SupportedFeatures* features) const;
+    void APIGetFeatures(SupportedFeatures* features) const;
+    wgpu::Status APIGetAdapterInfo(AdapterInfo* adapterInfo) const;
+    Future APIGetLostFuture() const;
+    void APIInjectError(wgpu::ErrorType type, StringView message);
     bool APITick();
     void APIValidateTextureDescriptor(const TextureDescriptor* desc);
 
@@ -375,15 +358,11 @@ class DeviceBase : public ErrorSink, public RefCountedWithExternalCount<RefCount
 
     size_t GetLazyClearCountForTesting();
     void IncrementLazyClearCountForTesting();
-    void EmitWarningOnce(const std::string& message);
-    void EmitLog(const char* message);
-    void EmitLog(WGPULoggingType loggingType, const char* message);
+    void EmitWarningOnce(std::string_view message);
+    void EmitLog(std::string_view message);
+    void EmitLog(WGPULoggingType loggingType, std::string_view message);
     void EmitCompilationLog(const ShaderModuleBase* module);
-    void APIForceLoss(wgpu::DeviceLostReason reason, const char* message) {
-        // TODO(crbug.com/42241188): Remove const char* version of the method.
-        return APIForceLoss2(reason, message);
-    }
-    void APIForceLoss2(wgpu::DeviceLostReason reason, std::string_view message);
+    void APIForceLoss(wgpu::DeviceLostReason reason, StringView message);
     QueueBase* GetQueue() const;
 
     friend class IgnoreLazyClearCountScope;
@@ -405,6 +384,8 @@ class DeviceBase : public ErrorSink, public RefCountedWithExternalCount<RefCount
 
     virtual bool ShouldDuplicateParametersForDrawIndirect(
         const RenderPipelineBase* renderPipelineBase) const;
+
+    virtual bool BackendWillValidateMultiDraw() const;
 
     // For OpenGL/OpenGL ES, we must apply the index buffer offset from SetIndexBuffer to the
     // firstIndex parameter in indirect buffers. This happens in the validation since it
@@ -431,9 +412,7 @@ class DeviceBase : public ErrorSink, public RefCountedWithExternalCount<RefCount
 
     const CacheKey& GetCacheKey() const;
     const std::string& GetLabel() const;
-    // TODO(crbug.com/42241188): Remove const char* version of the method.
-    void APISetLabel(const char* label);
-    void APISetLabel2(std::optional<std::string_view> label);
+    void APISetLabel(StringView label);
     void APIDestroy();
 
     virtual void AppendDebugLayerMessages(ErrorData* error) {}
@@ -457,6 +436,9 @@ class DeviceBase : public ErrorSink, public RefCountedWithExternalCount<RefCount
     Ref<RenderPipelineBase> AddOrGetCachedRenderPipeline(Ref<RenderPipelineBase> renderPipeline);
 
     void DumpMemoryStatistics(dawn::native::MemoryDump* dump) const;
+    uint64_t ComputeEstimatedMemoryUsage() const;
+    void ReduceMemoryUsage();
+    void PerformIdleTasks();
 
     ResultOrError<Ref<BufferBase>> GetOrCreateTemporaryUniformBuffer(size_t size);
 
@@ -464,7 +446,6 @@ class DeviceBase : public ErrorSink, public RefCountedWithExternalCount<RefCount
     // Constructor used only for mocking and testing.
     DeviceBase();
 
-    void ForceSetToggleForTesting(Toggle toggle, bool isEnabled);
     void ForceEnableFeatureForTesting(Feature feature);
 
     MaybeError Initialize(Ref<QueueBase> defaultQueue);
@@ -481,6 +462,7 @@ class DeviceBase : public ErrorSink, public RefCountedWithExternalCount<RefCount
     // TODO(dawn:1702) Make this private and move the class in the implementation file when we mock
     // the adapter.
     Ref<DeviceLostEvent> mLostEvent = nullptr;
+    Future mLostFuture = {kNullFutureID};
 
   private:
     void WillDropLastExternalRef() override;
@@ -525,6 +507,7 @@ class DeviceBase : public ErrorSink, public RefCountedWithExternalCount<RefCount
     virtual ResultOrError<Ref<SharedFenceBase>> ImportSharedFenceImpl(
         const SharedFenceDescriptor* descriptor);
     virtual void SetLabelImpl();
+    virtual void PerformIdleTasksImpl();
 
     virtual MaybeError TickImpl() = 0;
     void FlushCallbackTaskQueue();
@@ -547,6 +530,7 @@ class DeviceBase : public ErrorSink, public RefCountedWithExternalCount<RefCount
     // ErrorSink implementation
     void ConsumeError(std::unique_ptr<ErrorData> error,
                       InternalErrorType additionalAllowedErrors = InternalErrorType::None) override;
+    void HandleDeviceLost(wgpu::DeviceLostReason reason, std::string_view message);
 
     bool HasPendingTasks();
     bool IsDeviceIdle();

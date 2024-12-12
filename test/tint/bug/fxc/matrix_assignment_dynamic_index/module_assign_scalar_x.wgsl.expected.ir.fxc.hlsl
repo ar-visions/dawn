@@ -1,5 +1,3 @@
-SKIP: FAILED
-
 
 cbuffer cbuffer_uniforms : register(b4, space1) {
   uint4 uniforms[1];
@@ -7,9 +5,22 @@ cbuffer cbuffer_uniforms : register(b4, space1) {
 static float2x4 m1 = float2x4((0.0f).xxxx, (0.0f).xxxx);
 [numthreads(1, 1, 1)]
 void main() {
-  m1[uniforms[0u].x][0] = 1.0f;
+  uint v = uniforms[0u].x;
+  switch(v) {
+    case 0u:
+    {
+      m1[0u].x = 1.0f;
+      break;
+    }
+    case 1u:
+    {
+      m1[1u].x = 1.0f;
+      break;
+    }
+    default:
+    {
+      break;
+    }
+  }
 }
-
-FXC validation failure:
-c:\src\dawn\Shader@0x0000020F784DEDE0(8,3-20): error X3500: array reference cannot be used as an l-value; not natively addressable
 

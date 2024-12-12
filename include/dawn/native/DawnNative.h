@@ -89,15 +89,6 @@ class DAWN_NATIVE_EXPORT Adapter {
     Adapter(const Adapter& other);
     Adapter& operator=(const Adapter& other);
 
-    // TODO(crbug.com/347047627): These methods are historical duplicates of
-    // those in webgpu_cpp.h. Update uses of these methods and remove them.
-    wgpu::Status GetInfo(wgpu::AdapterInfo* info) const;
-    wgpu::Status GetInfo(WGPUAdapterInfo* info) const;
-    wgpu::Status GetProperties(wgpu::AdapterProperties* properties) const;
-    wgpu::Status GetProperties(WGPUAdapterProperties* properties) const;
-    std::vector<const char*> GetSupportedFeatures() const;
-    wgpu::ConvertibleStatus GetLimits(WGPUSupportedLimits* limits) const;
-
     void SetUseTieredLimits(bool useTieredLimits);
 
     // Check that the Adapter is able to support importing external images. This is necessary
@@ -286,6 +277,8 @@ class DAWN_NATIVE_EXPORT MemoryDump {
     static const char kUnitsBytes[];    // Unit name to represent bytes.
     static const char kUnitsObjects[];  // Unit name to represent #objects.
 
+    MemoryDump() = default;
+
     virtual void AddScalar(const char* name,
                            const char* key,
                            const char* units,
@@ -293,10 +286,24 @@ class DAWN_NATIVE_EXPORT MemoryDump {
 
     virtual void AddString(const char* name, const char* key, const std::string& value) = 0;
 
+    MemoryDump(const MemoryDump&) = delete;
+    MemoryDump& operator=(const MemoryDump&) = delete;
+
   protected:
     virtual ~MemoryDump() = default;
 };
 DAWN_NATIVE_EXPORT void DumpMemoryStatistics(WGPUDevice device, MemoryDump* dump);
+
+// Unlike memory dumps which include detailed information about allocations, this only returns the
+// total estimated memory usage, and is intended for background tracing for UMA.
+DAWN_NATIVE_EXPORT uint64_t ComputeEstimatedMemoryUsage(WGPUDevice device);
+
+// Free any unused GPU memory like staging buffers, cached resources, etc.
+DAWN_NATIVE_EXPORT void ReduceMemoryUsage(WGPUDevice device);
+
+// Perform tasks that are appropriate to do when idle like serializing pipeline
+// caches, etc.
+DAWN_NATIVE_EXPORT void PerformIdleTasks(const wgpu::Device& device);
 
 }  // namespace dawn::native
 

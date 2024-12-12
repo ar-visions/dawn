@@ -34,6 +34,7 @@
 #include <vector>
 
 #include "dawn/common/WindowsUtils.h"
+#include "dawn/native/ApplyClearColorValueWithDrawHelper.h"
 #include "dawn/native/ChainUtils.h"
 #include "dawn/native/CommandEncoder.h"
 #include "dawn/native/CommandValidation.h"
@@ -279,7 +280,6 @@ MaybeError CommandBuffer::Execute(const ScopedSwapStateCommandRecordingContext* 
                 }
                 DAWN_TRY(
                     LazyClearSyncScope(GetResourceUsages().renderPasses[nextRenderPassNumber]));
-                LazyClearRenderPassAttachments(cmd);
                 DAWN_TRY(ExecuteRenderPass(cmd, commandContext));
 
                 nextRenderPassNumber++;
@@ -475,7 +475,7 @@ MaybeError CommandBuffer::Execute(const ScopedSwapStateCommandRecordingContext* 
 MaybeError CommandBuffer::ExecuteComputePass(
     const ScopedSwapStateCommandRecordingContext* commandContext) {
     ComputePipeline* lastPipeline = nullptr;
-    BindGroupTracker bindGroupTracker(commandContext, /*isRenderPass=*/false);
+    ComputePassBindGroupTracker bindGroupTracker(commandContext);
 
     Command type;
     while (mCommands.NextCommandId(&type)) {
@@ -564,19 +564,31 @@ MaybeError CommandBuffer::ExecuteComputePass(
 MaybeError CommandBuffer::ExecuteRenderPass(
     BeginRenderPassCmd* renderPass,
     const ScopedSwapStateCommandRecordingContext* commandContext) {
-    auto* d3d11DeviceContext = commandContext->GetD3D11DeviceContext4();
+    // For the color attachments that the clear_color_with_draw workaround has applied, we can skip
+    // the clear for them.
+    for (auto i :
+         IterateBitSet(ClearWithDrawHelper::GetAppliedColorAttachments(GetDevice(), renderPass))) {
+        auto& colorAttachment = renderPass->colorAttachments[i];
+        DAWN_ASSERT(colorAttachment.loadOp == wgpu::LoadOp::Clear);
+        // Skip the clear as it will be handled by the workaround.
+        colorAttachment.loadOp = wgpu::LoadOp::Load;
+        // Mark the resource as initialized to avoid the lazy clear.
+        SubresourceRange range = colorAttachment.view->GetSubresourceRange();
+        colorAttachment.view->GetTexture()->SetIsSubresourceContentInitialized(true, range);
+    }
+    LazyClearRenderPassAttachments(renderPass);
 
+    auto* d3d11DeviceContext = commandContext->GetD3D11DeviceContext4();
     // Hold ID3D11RenderTargetView ComPtr to make attachments alive.
     PerColorAttachment<ID3D11RenderTargetView*> d3d11RenderTargetViews = {};
     ColorAttachmentIndex attachmentCount{};
-    bool clearWithDraw = GetDevice()->IsToggleEnabled(Toggle::ClearColorWithDraw);
     // TODO(dawn:1815): Shrink the sparse attachments to accommodate more UAVs.
     for (auto i : IterateBitSet(renderPass->attachmentState->GetColorAttachmentsMask())) {
         TextureView* colorTextureView = ToBackend(renderPass->colorAttachments[i].view.Get());
         DAWN_TRY_ASSIGN(d3d11RenderTargetViews[i],
                         colorTextureView->GetOrCreateD3D11RenderTargetView(
                             renderPass->colorAttachments[i].depthSlice));
-        if (!clearWithDraw && renderPass->colorAttachments[i].loadOp == wgpu::LoadOp::Clear) {
+        if (renderPass->colorAttachments[i].loadOp == wgpu::LoadOp::Clear) {
             std::array<float, 4> clearColor =
                 ConvertToFloatColor(renderPass->colorAttachments[i].clearColor);
             d3d11DeviceContext->ClearRenderTargetView(d3d11RenderTargetViews[i], clearColor.data());
@@ -638,8 +650,7 @@ MaybeError CommandBuffer::ExecuteRenderPass(
     d3d11DeviceContext->RSSetScissorRects(1, &scissor);
 
     RenderPipeline* lastPipeline = nullptr;
-    BindGroupTracker bindGroupTracker(commandContext, /*isRenderPass=*/true,
-                                      std::move(pixelLocalStorageUAVs));
+    RenderPassBindGroupTracker bindGroupTracker(commandContext, std::move(pixelLocalStorageUAVs));
     VertexBufferTracker vertexBufferTracker(commandContext);
     std::array<float, 4> blendColor = {0.0f, 0.0f, 0.0f, 0.0f};
     uint32_t stencilReference = 0;

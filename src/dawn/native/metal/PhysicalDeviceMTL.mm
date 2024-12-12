@@ -39,6 +39,7 @@
 #include "dawn/native/metal/BufferMTL.h"
 #include "dawn/native/metal/DeviceMTL.h"
 #include "dawn/native/metal/UtilsMetal.h"
+#include "dawn/platform/DawnPlatform.h"
 
 #if DAWN_PLATFORM_IS(MACOS)
 #import <IOKit/IOKitLib.h>
@@ -355,7 +356,7 @@ bool PhysicalDevice::SupportsExternalImages() const {
     return false;
 }
 
-bool PhysicalDevice::SupportsFeatureLevel(FeatureLevel) const {
+bool PhysicalDevice::SupportsFeatureLevel(wgpu::FeatureLevel) const {
     return true;
 }
 
@@ -443,6 +444,14 @@ void PhysicalDevice::SetupBackendDeviceToggles(dawn::platform::Platform* platfor
         deviceToggles->Default(Toggle::MetalEnableVertexPulling, true);
     }
 
+    // Shader `discard_fragment` changed semantics to be uniform in Metal 2.3+. See section 6.10.1.3
+    // of the Metal Spec (v3.2).
+    if (@available(macOS 11.0, iOS 14.0, *)) {
+        deviceToggles->Default(Toggle::DisableDemoteToHelper, true);
+    } else {
+        deviceToggles->ForceSet(Toggle::DisableDemoteToHelper, false);
+    }
+
     // TODO(crbug.com/dawn/846): tighten this workaround when the driver bug is fixed.
     deviceToggles->Default(Toggle::AlwaysResolveIntoZeroLevelAndLayer, true);
 
@@ -492,13 +501,18 @@ void PhysicalDevice::SetupBackendDeviceToggles(dawn::platform::Platform* platfor
 
     // On macOS 15.0+, we can use sampleTimestamps:gpuTimestamp: from MTLDevice to capture CPU and
     // GPU timestamps to estimate GPU timestamp period at device creation, but this API call will
-    // cause GPU overheating on Intel Iris Plus Graphics 655 due to driver bug. Skip the
-    // timestamp sampling on the specific device as workaround. See https://crbug.com/342701242 for
-    // more details.
+    // cause GPU overheating on Intel GPUs due to a driver bug keeping the GPU running at the
+    // maximum clock. Disable timestamp sampling to avoid overheating user's devices.
+    // See https://crbug.com/342701242 for more details.
     if (@available(macos 15.0, iOS 14.0, *)) {
-        deviceToggles->Default(Toggle::MetalDisableTimestampPeriodEstimation,
-                               gpu_info::IsIrisPlus655(deviceId));
+        if (gpu_info::IsIntel(deviceId)) {
+            deviceToggles->Default(Toggle::MetalDisableTimestampPeriodEstimation, true);
+        }
     }
+
+    // Use the Tint IR backend by default if the corresponding platform feature is enabled.
+    deviceToggles->Default(Toggle::UseTintIR,
+                           platform->IsFeatureEnabled(platform::Features::kWebGPUUseTintIR));
 
 #if DAWN_PLATFORM_IS(MACOS)
     if (gpu_info::IsIntel(vendorId)) {
@@ -527,6 +541,15 @@ void PhysicalDevice::SetupBackendDeviceToggles(dawn::platform::Platform* platfor
 
     if (gpu_info::IsApple(vendorId)) {
         deviceToggles->Default(Toggle::MetalFillEmptyOcclusionQueriesWithZero, true);
+
+        // TODO(crbug.com/372698905): Tighten the workaround when a fixed macOS version releases.
+        if (@available(macOS 10.15, iOS 13.0, *)) {
+            // TODO(crbug.com/380316939): Replace the cast with MTLGPUFamilyApple8 when available.
+            if ([*mDevice supportsFamily:static_cast<::MTLGPUFamily>(1008)]) {
+                deviceToggles->Default(Toggle::MetalSerializeTimestampGenerationAndResolution,
+                                       true);
+            }
+        }
     }
 
     // Local testing shows the workaround is needed on AMD Radeon HD 8870M (gcn-1) MacOS 12.1;
@@ -697,11 +720,13 @@ void PhysicalDevice::InitializeSupportedFeaturesImpl() {
         }
     }
 
-    if (@available(macOS 11.0, iOS 10.0, *)) {
-        // Image block functionality is available starting from the Apple4 family.
-        if ([*mDevice supportsFamily:MTLGPUFamilyApple4]) {
-            EnableFeature(Feature::PixelLocalStorageCoherent);
-            EnableFeature(Feature::PixelLocalStorageNonCoherent);
+    // TODO(crbug.com/356461286): Intel and AMD GPUs support the indirect command buffer and
+    // argument buffer features which are required for multi draw. However, multi draw end2end tests
+    // fail on non-Apple GPUs. Disable the feature for non-Apple GPUs. Apple3 family is the minimum
+    // requirement and only includes Apple GPUs.
+    if (@available(macOS 10.15, iOS 13.0, *)) {
+        if ([*mDevice supportsFamily:MTLGPUFamilyApple3]) {
+            EnableFeature(Feature::MultiDrawIndirect);
         }
     }
 
@@ -709,11 +734,12 @@ void PhysicalDevice::InitializeSupportedFeaturesImpl() {
     EnableFeature(Feature::ShaderF16);
     EnableFeature(Feature::RG11B10UfloatRenderable);
     EnableFeature(Feature::BGRA8UnormStorage);
-    EnableFeature(Feature::SurfaceCapabilities);
     EnableFeature(Feature::DualSourceBlending);
     EnableFeature(Feature::R8UnormStorage);
     EnableFeature(Feature::ShaderModuleCompilationOptions);
     EnableFeature(Feature::DawnLoadResolveTexture);
+    EnableFeature(Feature::ClipDistances);
+    EnableFeature(Feature::Float32Blendable);
 
     // SIMD-scoped permute operations is supported by GPU family Metal3, Apple6, Apple7, Apple8,
     // and Mac2.
@@ -723,13 +749,14 @@ void PhysicalDevice::InitializeSupportedFeaturesImpl() {
     // explicitly use Xcode 13.3 and MacOS 12.3 version 21E226, so does not support
     // MTLGPUFamilyMetal3.
     // Note that supportsFamily: method requires macOS 10.15+ or iOS 13.0+
+    // TODO(380326541): Check that reduction operations are supported in Apple6. The support
+    // table says Apple7.
     if (@available(macOS 10.15, iOS 13.0, *)) {
         if ([*mDevice supportsFamily:MTLGPUFamilyApple6] ||
             [*mDevice supportsFamily:MTLGPUFamilyMac2]) {
             EnableFeature(Feature::Subgroups);
+            // TODO(crbug.com/380244620) remove SubgroupsF16
             EnableFeature(Feature::SubgroupsF16);
-            // TODO(349125474): Remove deprecated ChromiumExperimentalSubgroups.
-            EnableFeature(Feature::ChromiumExperimentalSubgroups);
         }
     }
 
@@ -897,7 +924,8 @@ MaybeError PhysicalDevice::InitializeSupportedLimitsImpl(CombinedLimits* limits)
     uint32_t vendorId = GetVendorId();
     if (gpu_info::IsApple(vendorId)) {
         limits->v1.maxInterStageShaderComponents = mtlLimits.maxFragmentInputComponents;
-        limits->v1.maxInterStageShaderVariables = mtlLimits.maxFragmentInputs;
+        limits->v1.maxInterStageShaderVariables =
+            std::min(mtlLimits.maxFragmentInputs, mtlLimits.maxFragmentInputComponents / 4);
     } else {
         // On non-Apple macOS each built-in consumes one individual inter-stage shader variable.
         limits->v1.maxInterStageShaderVariables = mtlLimits.maxFragmentInputs - 4;
@@ -927,6 +955,7 @@ MaybeError PhysicalDevice::InitializeSupportedLimitsImpl(CombinedLimits* limits)
     // - maxVertexBufferArrayStride
 
     // Experimental limits for subgroups
+    // TODO(354751907): Move to AdapterInfo
     limits->experimentalSubgroupLimits.minSubgroupSize = 4;
     limits->experimentalSubgroupLimits.maxSubgroupSize = 64;
 
@@ -939,8 +968,12 @@ FeatureValidationResult PhysicalDevice::ValidateFeatureSupportedWithTogglesImpl(
     return {};
 }
 
-void PhysicalDevice::PopulateBackendProperties(UnpackedPtr<AdapterProperties>& properties) const {
-    if (auto* memoryHeapProperties = properties.Get<AdapterPropertiesMemoryHeaps>()) {
+void PhysicalDevice::PopulateBackendProperties(UnpackedPtr<AdapterInfo>& info) const {
+    if (auto* subgroupProperties = info.Get<AdapterPropertiesSubgroups>()) {
+        subgroupProperties->subgroupMinSize = 4;
+        subgroupProperties->subgroupMaxSize = 64;
+    }
+    if (auto* memoryHeapProperties = info.Get<AdapterPropertiesMemoryHeaps>()) {
         if ([*mDevice hasUnifiedMemory]) {
             auto* heapInfo = new MemoryHeapInfo[1];
             memoryHeapProperties->heapCount = 1;

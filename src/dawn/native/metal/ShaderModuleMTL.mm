@@ -64,8 +64,7 @@ using OptionalVertexPullingTransformConfig =
     X(bool, disableSymbolRenaming)                                                               \
     X(tint::msl::writer::Options, tintOptions)                                                   \
     X(bool, use_tint_ir)                                                                         \
-    X(CacheKey::UnsafeUnkeyedValue<dawn::platform::Platform*>, platform)                         \
-    X(std::optional<uint32_t>, maxSubgroupSizeForFullSubgroups)
+    X(CacheKey::UnsafeUnkeyedValue<dawn::platform::Platform*>, platform)
 
 DAWN_MAKE_CACHE_REQUEST(MslCompilationRequest, MSL_COMPILATION_REQUEST_MEMBERS);
 #undef MSL_COMPILATION_REQUEST_MEMBERS
@@ -161,7 +160,7 @@ tint::msl::writer::Bindings generateBindingInfo(
                             arrayLengthFromUniform.bindpoint_to_size_index.emplace(
                                 srcBindingPoint, dstBindingPoint.binding);
                             break;
-                        case wgpu::BufferBindingType::Undefined:
+                        case wgpu::BufferBindingType::BindingNotUsed:
                             DAWN_UNREACHABLE();
                             break;
                     }
@@ -210,8 +209,7 @@ ResultOrError<CacheResult<MslCompilation>> TranslateToMSL(
     ShaderModule::MetalFunctionData* out,
     uint32_t sampleMask,
     const RenderPipeline* renderPipeline,
-    const BindingInfoArray& moduleBindingInfo,
-    std::optional<uint32_t> maxSubgroupSizeForFullSubgroups) {
+    const BindingInfoArray& moduleBindingInfo) {
     ScopedTintICEHandler scopedICEHandler(device);
 
     std::ostringstream errorStream;
@@ -275,12 +273,13 @@ ResultOrError<CacheResult<MslCompilation>> TranslateToMSL(
     req.entryPointName = programmableStage.entryPoint.c_str();
     req.disableSymbolRenaming = device->IsToggleEnabled(Toggle::DisableSymbolRenaming);
     req.platform = UnsafeUnkeyedValue(device->GetPlatform());
-    req.maxSubgroupSizeForFullSubgroups = maxSubgroupSizeForFullSubgroups;
 
     req.tintOptions.disable_robustness = !device->IsRobustnessEnabled();
     req.tintOptions.buffer_size_ubo_index = kBufferLengthBufferSlot;
     req.tintOptions.fixed_sample_mask = sampleMask;
     req.tintOptions.disable_workgroup_init = false;
+    req.tintOptions.disable_demote_to_helper =
+        device->IsToggleEnabled(Toggle::DisableDemoteToHelper);
     req.tintOptions.emit_vertex_point_size =
         stage == SingleShaderStage::Vertex &&
         renderPipeline->GetPrimitiveTopology() == wgpu::PrimitiveTopology::PointList;
@@ -298,6 +297,7 @@ ResultOrError<CacheResult<MslCompilation>> TranslateToMSL(
     DAWN_TRY_LOAD_OR_RUN(
         mslCompilation, device, std::move(req), MslCompilation::FromBlob,
         [](MslCompilationRequest r) -> ResultOrError<MslCompilation> {
+            constexpr char kRemappedEntryPointName[] = "dawn_entry_point";
             tint::ast::transform::Manager transformManager;
             tint::ast::transform::DataMap transformInputs;
 
@@ -308,12 +308,13 @@ ResultOrError<CacheResult<MslCompilation>> TranslateToMSL(
             transformInputs.Add<tint::ast::transform::SingleEntryPoint::Config>(r.entryPointName);
 
             // Needs to run before all other transforms so that they can use builtin names safely.
+            tint::ast::transform::Renamer::Remappings requestedNames = {
+                {r.entryPointName, kRemappedEntryPointName}};
             transformManager.Add<tint::ast::transform::Renamer>();
-            if (r.disableSymbolRenaming) {
-                // We still need to rename MSL reserved keywords
-                transformInputs.Add<tint::ast::transform::Renamer::Config>(
-                    tint::ast::transform::Renamer::Target::kMslKeywords);
-            }
+            transformInputs.Add<tint::ast::transform::Renamer::Config>(
+                r.disableSymbolRenaming ? tint::ast::transform::Renamer::Target::kMslKeywords
+                                        : tint::ast::transform::Renamer::Target::kAll,
+                std::move(requestedNames));
 
             if (r.vertexPullingTransformConfig) {
                 transformManager.Add<tint::ast::transform::VertexPulling>();
@@ -338,28 +339,11 @@ ResultOrError<CacheResult<MslCompilation>> TranslateToMSL(
                                               &transformOutputs, nullptr));
             }
 
-            // TODO(dawn:2180): refactor out.
-            std::string remappedEntryPointName;
-            if (auto* data = transformOutputs.Get<tint::ast::transform::Renamer::Data>()) {
-                auto it = data->remappings.find(r.entryPointName);
-                if (it != data->remappings.end()) {
-                    remappedEntryPointName = it->second;
-                } else {
-                    DAWN_INVALID_IF(!r.disableSymbolRenaming,
-                                    "Could not find remapped name for entry point.");
-
-                    remappedEntryPointName = r.entryPointName;
-                }
-            } else {
-                return DAWN_VALIDATION_ERROR("Transform output missing renamer data.");
-            }
-
             Extent3D localSize{0, 0, 0};
             if (r.stage == SingleShaderStage::Compute) {
                 // Validate workgroup size after program runs transforms.
                 DAWN_TRY_ASSIGN(localSize, ValidateComputeStageWorkgroupSize(
-                                               program, remappedEntryPointName.data(), r.limits,
-                                               r.maxSubgroupSizeForFullSubgroups));
+                                               program, kRemappedEntryPointName, r.limits));
             }
 
             TRACE_EVENT0(r.platform.UnsafeGetValue(), General, "tint::msl::writer::Generate");
@@ -391,10 +375,10 @@ ResultOrError<CacheResult<MslCompilation>> TranslateToMSL(
             )" + msl;
 
             auto workgroupAllocations =
-                std::move(result->workgroup_allocations.at(remappedEntryPointName));
+                std::move(result->workgroup_info.allocations.at(kRemappedEntryPointName));
             return MslCompilation{{
                 std::move(msl),
-                std::move(remappedEntryPointName),
+                std::move(kRemappedEntryPointName),
                 result->needs_storage_buffer_sizes,
                 result->has_invariant_attribute,
                 std::move(workgroupAllocations),
@@ -419,10 +403,9 @@ MaybeError ShaderModule::CreateFunction(SingleShaderStage stage,
                                         const PipelineLayout* layout,
                                         ShaderModule::MetalFunctionData* out,
                                         uint32_t sampleMask,
-                                        const RenderPipeline* renderPipeline,
-                                        std::optional<uint32_t> maxSubgroupSizeForFullSubgroups) {
+                                        const RenderPipeline* renderPipeline) {
     TRACE_EVENT1(GetDevice()->GetPlatform(), General, "metal::ShaderModule::CreateFunction",
-                 "label", utils::GetLabelForTrace(GetLabel().c_str()));
+                 "label", utils::GetLabelForTrace(GetLabel()));
 
     DAWN_ASSERT(!IsError());
     DAWN_ASSERT(out);
@@ -437,8 +420,7 @@ MaybeError ShaderModule::CreateFunction(SingleShaderStage stage,
     CacheResult<MslCompilation> mslCompilation;
     DAWN_TRY_ASSIGN(mslCompilation,
                     TranslateToMSL(GetDevice(), programmableStage, stage, layout, out, sampleMask,
-                                   renderPipeline, GetEntryPoint(entryPointName).bindings,
-                                   maxSubgroupSizeForFullSubgroups));
+                                   renderPipeline, GetEntryPoint(entryPointName).bindings));
 
     out->needsStorageBufferLength = mslCompilation->needsStorageBufferLength;
     out->workgroupAllocations = std::move(mslCompilation->workgroupAllocations);
@@ -484,6 +466,20 @@ MaybeError ShaderModule::CreateFunction(SingleShaderStage stage,
     {
         TRACE_EVENT0(GetDevice()->GetPlatform(), General, "MTLLibrary::newFunctionWithName");
         out->function = AcquireNSPRef([*library newFunctionWithName:name.Get()]);
+        // TODO(372181030): Remove this unnecessary check when we understand why the MTLFunction
+        // might be nil here.
+        if (out->function == nil) {
+            std::string availableFunctions;
+            for (NSString* fn : [*library functionNames]) {
+                availableFunctions += "\n - \"";
+                availableFunctions += [fn UTF8String];
+            }
+
+            return DAWN_FORMAT_INTERNAL_ERROR(
+                "ShaderModuleMTL: failed to get the MTLFunction \'%s\' from produced MSL "
+                "shader below:\n\n%s\n\nAvailable functions are:%s",
+                mslCompilation->remappedEntryPointName, mslCompilation->msl, availableFunctions);
+        }
     }
 
     std::ostringstream labelStream;

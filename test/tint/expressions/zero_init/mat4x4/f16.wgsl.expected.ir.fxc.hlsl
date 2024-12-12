@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 
 void f() {
@@ -10,5 +10,7 @@ void unused_entry_point() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x0000026A11D70280(3,10-18): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(3,10-18): error X3000: syntax error: unexpected token 'float16_t'
 
+
+tint executable returned error: exit status 1

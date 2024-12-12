@@ -207,6 +207,14 @@ static constexpr ToggleEnumAndInfoList kToggleNameAndInfoList = {{
      {"disable_workgroup_init",
       "Disables the workgroup memory zero-initialization for compute shaders.",
       "https://crbug.com/tint/1003", ToggleStage::Device}},
+    {Toggle::DisableDemoteToHelper,
+     {"disable_demote_to_helper",
+      "Disables the conversion of discard to demote to helper thread in the IR transform",
+      "https://crbug.com/42250787", ToggleStage::Device}},
+    {Toggle::VulkanUseDemoteToHelperInvocationExtension,
+     {"vulkan_use_demote_to_helper_invocation_extension",
+      "Sets the use of the vulkan demote to helper extension", "https://crbug.com/42250787",
+      ToggleStage::Device}},
     {Toggle::DisableSymbolRenaming,
      {"disable_symbol_renaming", "Disables the WGSL symbol renaming so that names are preserved.",
       "https://crbug.com/dawn/1016", ToggleStage::Device}},
@@ -558,6 +566,34 @@ static constexpr ToggleEnumAndInfoList kToggleNameAndInfoList = {{
       "COPY_SOURCE too on Nvidia since the shader resource states seem to miss flushing all caches "
       "and layout transitions causing rendering corruption.",
       "https://crbug.com/356905061", ToggleStage::Device}},
+    {Toggle::GLDepthBiasModifier,
+     {"gl_depth_bias_modifier",
+      "Empirically some GL drivers select n+1 when a depth value lies between 2^n and 2^(n+1), "
+      "while the WebGPU CTS is expecting n. Scale the depth bias value by multiple 0.5 on certain "
+      "backends to achieve conformant result.",
+      "https://crbug.com/42241017", ToggleStage::Device}},
+    {Toggle::VulkanMonolithicPipelineCache,
+     {"vulkan_monolithic_pipeline_cache",
+      "Use a monolithic VkPipelineCache per device. The embedder is responsible for calling "
+      "PerformIdleTasks() on the device to serialize VkPipelineCache to BlobCache if needed.",
+      "crbug.com/370343334", ToggleStage::Device}},
+    {Toggle::MetalSerializeTimestampGenerationAndResolution,
+     {"metal_serialize_timestamp_generation_and_resolution",
+      "Newer Apple GPUs can race on query set resolution with timestamp writing from earlier "
+      "compute passes. This can be worked around by signaling and waiting for a shared event in "
+      "between timestamp generation and resolution.",
+      "crbug.com/372698905", ToggleStage::Device}},
+    {Toggle::D3D12RelaxMinSubgroupSizeTo8,
+     {"d3d12_relax_min_subgroup_size_to_8",
+      "Relax the adapters and devices' subgroupMinSize to the minimium of D3D12 reported "
+      "minWaveLaneCount and 8. Some D3D12 drivers is possible to run fragment shader with wave "
+      "count 8 while reporting minWaveLaneCount 16.",
+      "https://crbug.com/381969450", ToggleStage::Adapter}},
+    {Toggle::D3D12RelaxBufferTextureCopyPitchAndOffsetAlignment,
+     {"d3d12_relax_buffer_texture_copy_pitch_and_offset_alignment",
+      "Don't require the alignments of D3D12_TEXTURE_DATA_PITCH_ALIGNMENT (256) for row pitch "
+      "and D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT (512) for offset in buffer-texture copies.",
+      "https://crbug.com/381000081", ToggleStage::Device}},
     {Toggle::NoWorkaroundSampleMaskBecomesZeroForAllButLastColorTarget,
      {"no_workaround_sample_mask_becomes_zero_for_all_but_last_color_target",
       "MacOS 12.0+ Intel has a bug where the sample mask is only applied for the last color "

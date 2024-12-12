@@ -169,9 +169,12 @@ static constexpr std::array<DeviceExtInfo, kDeviceExtCount> sDeviceExtInfos{{
     {DeviceExt::ShaderFloat16Int8, "VK_KHR_shader_float16_int8", VulkanVersion_1_2},
     {DeviceExt::ShaderSubgroupExtendedTypes, "VK_KHR_shader_subgroup_extended_types",
      VulkanVersion_1_2},
+    {DeviceExt::DrawIndirectCount, "VK_KHR_draw_indirect_count", NeverPromoted},
 
     {DeviceExt::ShaderIntegerDotProduct, "VK_KHR_shader_integer_dot_product", VulkanVersion_1_3},
     {DeviceExt::ZeroInitializeWorkgroupMemory, "VK_KHR_zero_initialize_workgroup_memory",
+     VulkanVersion_1_3},
+    {DeviceExt::DemoteToHelperInvocation, "VK_EXT_shader_demote_to_helper_invocation",
      VulkanVersion_1_3},
     {DeviceExt::Maintenance4, "VK_KHR_maintenance4", VulkanVersion_1_3},
     {DeviceExt::SubgroupSizeControl, "VK_EXT_subgroup_size_control", VulkanVersion_1_3},
@@ -181,8 +184,6 @@ static constexpr std::array<DeviceExtInfo, kDeviceExtCount> sDeviceExtInfos{{
     {DeviceExt::Swapchain, "VK_KHR_swapchain", NeverPromoted},
     {DeviceExt::QueueFamilyForeign, "VK_EXT_queue_family_foreign", NeverPromoted},
     {DeviceExt::Robustness2, "VK_EXT_robustness2", NeverPromoted},
-    {DeviceExt::ShaderSubgroupUniformControlFlow, "VK_KHR_shader_subgroup_uniform_control_flow",
-     NeverPromoted},
     {DeviceExt::DisplayTiming, "VK_GOOGLE_display_timing", NeverPromoted},
 
     {DeviceExt::ExternalMemoryAndroidHardwareBuffer,
@@ -235,6 +236,7 @@ DeviceExtSet EnsureDependencies(const DeviceExtSet& advertisedExts,
             case DeviceExt::Maintenance2:
             case DeviceExt::ImageFormatList:
             case DeviceExt::StorageBufferStorageClass:
+            case DeviceExt::DrawIndirectCount:
                 hasDependencies = true;
                 break;
 
@@ -282,10 +284,10 @@ DeviceExtSet EnsureDependencies(const DeviceExtSet& advertisedExts,
             case DeviceExt::DepthClipEnable:
             case DeviceExt::ShaderIntegerDotProduct:
             case DeviceExt::ZeroInitializeWorkgroupMemory:
+            case DeviceExt::DemoteToHelperInvocation:
             case DeviceExt::Maintenance4:
             case DeviceExt::Robustness2:
             case DeviceExt::SubgroupSizeControl:
-            case DeviceExt::ShaderSubgroupUniformControlFlow:
             case DeviceExt::ShaderSubgroupExtendedTypes:
                 hasDependencies = HasDep(DeviceExt::GetPhysicalDeviceProperties2);
                 break;

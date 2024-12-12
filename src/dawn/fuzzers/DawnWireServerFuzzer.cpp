@@ -36,6 +36,7 @@
 #include "dawn/common/Assert.h"
 #include "dawn/common/DynamicLib.h"
 #include "dawn/common/Log.h"
+#include "dawn/common/StringViewUtils.h"
 #include "dawn/common/SystemUtils.h"
 #include "dawn/dawn_proc.h"
 #include "dawn/native/DawnNative.h"
@@ -64,7 +65,7 @@ class DevNull : public dawn::wire::CommandSerializer {
 
 // We need this static function pointer to make AdapterSupported accessible in
 // instanceRequestAdapter
-static bool (*sAdapterSupported)(const dawn::native::Adapter&) = nullptr;
+static bool (*sAdapterSupported)(const wgpu::Adapter&) = nullptr;
 #if DAWN_PLATFORM_IS(WINDOWS) && defined(ADDRESS_SANITIZER)
 static dawn::DynamicLib sVulkanLoader;
 #endif
@@ -84,7 +85,7 @@ int DawnWireServerFuzzer::Initialize(int* argc, char*** argv) {
 
 int DawnWireServerFuzzer::Run(const uint8_t* data,
                               size_t size,
-                              bool (*AdapterSupported)(const dawn::native::Adapter&),
+                              bool (*AdapterSupported)(const wgpu::Adapter&),
                               bool supportsErrorInjection) {
     std::unique_ptr<dawn::native::Instance> instance = std::make_unique<dawn::native::Instance>();
 
@@ -119,23 +120,26 @@ int DawnWireServerFuzzer::Run(const uint8_t* data,
         std::vector<dawn::native::Adapter> adapters =
             dawn::native::Instance(reinterpret_cast<dawn::native::InstanceBase*>(cInstance))
                 .EnumerateAdapters();
-        for (dawn::native::Adapter adapter : adapters) {
+        // TODO(347047627): Use a webgpu.h version of enumerateAdapters
+        for (dawn::native::Adapter nativeAdapter : adapters) {
+            WGPUAdapter cAdapter = nativeAdapter.Get();
+            wgpu::Adapter adapter = cAdapter;
             if (sAdapterSupported(adapter)) {
-                WGPUAdapter cAdapter = adapter.Get();
                 dawn::native::GetProcs().adapterAddRef(cAdapter);
-                callback(WGPURequestAdapterStatus_Success, cAdapter, nullptr, userdata1, userdata2);
+                callback(WGPURequestAdapterStatus_Success, cAdapter, dawn::kEmptyOutputStringView,
+                         userdata1, userdata2);
                 return {};
             }
         }
-        callback(WGPURequestAdapterStatus_Unavailable, nullptr, "No supported adapter.", userdata1,
-                 userdata2);
+        callback(WGPURequestAdapterStatus_Unavailable, nullptr,
+                 dawn::ToOutputStringView("No supported adapter."), userdata1, userdata2);
         return {};
     };
     procs.instanceRequestAdapter = [](WGPUInstance cInstance, const WGPURequestAdapterOptions*,
                                       WGPURequestAdapterCallback callback, void* userdata) {
         RequestAdapter(
             cInstance,
-            [](WGPURequestAdapterStatus status, WGPUAdapter adapter, const char* message,
+            [](WGPURequestAdapterStatus status, WGPUAdapter adapter, WGPUStringView message,
                void* callback, void* userdata) {
                 auto cb = reinterpret_cast<WGPURequestAdapterCallback>(callback);
                 cb(status, adapter, message, userdata);
@@ -146,7 +150,7 @@ int DawnWireServerFuzzer::Run(const uint8_t* data,
                                        WGPURequestAdapterCallbackInfo callbackInfo) -> WGPUFuture {
         return RequestAdapter(
             cInstance,
-            [](WGPURequestAdapterStatus status, WGPUAdapter adapter, const char* message,
+            [](WGPURequestAdapterStatus status, WGPUAdapter adapter, WGPUStringView message,
                void* callback, void* userdata) {
                 auto cb = reinterpret_cast<WGPURequestAdapterCallback>(callback);
                 cb(status, adapter, message, userdata);

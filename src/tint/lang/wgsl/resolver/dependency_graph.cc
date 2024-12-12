@@ -62,6 +62,7 @@
 #include "src/tint/lang/wgsl/ast/must_use_attribute.h"
 #include "src/tint/lang/wgsl/ast/override.h"
 #include "src/tint/lang/wgsl/ast/return_statement.h"
+#include "src/tint/lang/wgsl/ast/row_major_attribute.h"
 #include "src/tint/lang/wgsl/ast/stage_attribute.h"
 #include "src/tint/lang/wgsl/ast/stride_attribute.h"
 #include "src/tint/lang/wgsl/ast/struct.h"
@@ -397,7 +398,8 @@ class DependencyScanner {
             [&](Default) {
                 if (!attr->IsAnyOf<ast::BuiltinAttribute, ast::DiagnosticAttribute,
                                    ast::InterpolateAttribute, ast::InvariantAttribute,
-                                   ast::MustUseAttribute, ast::StageAttribute, ast::StrideAttribute,
+                                   ast::MustUseAttribute, ast::RowMajorAttribute,
+                                   ast::StageAttribute, ast::StrideAttribute,
                                    ast::StructMemberOffsetAttribute>()) {
                     TINT_ICE() << "unhandled attribute type: " << attr->TypeInfo().name;
                 }
@@ -706,7 +708,7 @@ struct DependencyAnalysis {
 
             sorted_.Add(global->node);
 
-            if (TINT_UNLIKELY(!stack.IsEmpty())) {
+            if (DAWN_UNLIKELY(!stack.IsEmpty())) {
                 // Each stack.push() must have a corresponding stack.pop_back().
                 TINT_ICE() << "stack not empty after returning from TraverseDependencies()";
             }
@@ -718,7 +720,7 @@ struct DependencyAnalysis {
     /// @note will raise an ICE if the edge is not found.
     DependencyInfo DepInfoFor(const Global* from, const Global* to) const {
         auto info = dependency_edges_.Get(DependencyEdge{from, to});
-        if (TINT_LIKELY(info)) {
+        if (DAWN_LIKELY(info)) {
             return *info;
         }
         TINT_ICE() << "failed to find dependency info for edge: '" << NameOf(from->node) << "' -> '"

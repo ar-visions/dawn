@@ -39,7 +39,7 @@ void tint_symbol_inner(uint tint_local_index, tint_module_vars_struct tint_modul
   }
   threadgroup_barrier(mem_flags::mem_threadgroup);
   threadgroup tint_array<int, 246>* const p = tint_module_vars.W;
-  (*p)[0] = 42;
+  (*p)[0u] = 42;
 }
 
 kernel void tint_symbol(uint tint_local_index [[thread_index_in_threadgroup]], threadgroup tint_symbol_2* v_2 [[threadgroup(0)]]) {

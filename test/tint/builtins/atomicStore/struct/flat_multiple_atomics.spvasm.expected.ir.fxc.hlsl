@@ -12,7 +12,7 @@ struct compute_main_inputs {
 static uint local_invocation_index_1 = 0u;
 groupshared S_atomic wg;
 void compute_main_inner(uint local_invocation_index_2) {
-  wg.x = 0;
+  wg.x = int(0);
   uint v = 0u;
   InterlockedExchange(wg.a, 0u, v);
   uint v_1 = 0u;
@@ -30,8 +30,8 @@ void compute_main_1() {
 }
 
 void compute_main_inner_1(uint local_invocation_index_1_param) {
-  if ((local_invocation_index_1_param == 0u)) {
-    wg.x = 0;
+  if ((local_invocation_index_1_param < 1u)) {
+    wg.x = int(0);
     uint v_4 = 0u;
     InterlockedExchange(wg.a, 0u, v_4);
     uint v_5 = 0u;

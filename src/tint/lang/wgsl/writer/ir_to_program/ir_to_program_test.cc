@@ -122,8 +122,7 @@ fn f(i : i32, u : u32) -> i32 {
 }
 
 TEST_F(IRToProgramTest, EntryPoint_Compute) {
-    auto* fn = b.Function("f", ty.void_(), core::ir::Function::PipelineStage::kCompute,
-                          std::array{3u, 4u, 5u});
+    auto* fn = b.ComputeFunction("f", 3_u, 4_u, 5_u);
 
     fn->Block()->Append(b.Return(fn));
 
@@ -278,8 +277,7 @@ core::ir::FunctionParam* MakeBuiltinParam(core::ir::Builder& b,
 }  // namespace
 
 TEST_F(IRToProgramTest, EntryPoint_ParameterAttribute_Compute) {
-    auto* fn = b.Function("f", ty.void_(), core::ir::Function::PipelineStage::kCompute,
-                          std::array{3u, 4u, 5u});
+    auto* fn = b.ComputeFunction("f", 3_u, 4_u, 5_u);
     fn->SetParams({
         MakeBuiltinParam(b, ty.vec3<u32>(), core::BuiltinValue::kLocalInvocationId),
         MakeBuiltinParam(b, ty.u32(), core::BuiltinValue::kLocalInvocationIndex),
@@ -293,7 +291,7 @@ TEST_F(IRToProgramTest, EntryPoint_ParameterAttribute_Compute) {
     fn->Block()->Append(b.Return(fn));
 
     EXPECT_WGSL(R"(
-enable chromium_experimental_subgroups;
+enable subgroups;
 
 @compute @workgroup_size(3u, 4u, 5u)
 fn f(@builtin(local_invocation_id) v : vec3<u32>, @builtin(local_invocation_index) v_1 : u32, @builtin(global_invocation_id) v_2 : vec3<u32>, @builtin(workgroup_id) v_3 : vec3<u32>, @builtin(num_workgroups) v_4 : vec3<u32>, @builtin(subgroup_invocation_id) v_5 : u32, @builtin(subgroup_size) v_6 : u32) {
@@ -307,13 +305,16 @@ TEST_F(IRToProgramTest, EntryPoint_ParameterAttribute_Fragment) {
         MakeBuiltinParam(b, ty.bool_(), core::BuiltinValue::kFrontFacing),
         MakeBuiltinParam(b, ty.u32(), core::BuiltinValue::kSampleIndex),
         MakeBuiltinParam(b, ty.u32(), core::BuiltinValue::kSampleMask),
+        MakeBuiltinParam(b, ty.u32(), core::BuiltinValue::kSubgroupSize),
     });
 
     fn->Block()->Append(b.Return(fn));
 
     EXPECT_WGSL(R"(
+enable subgroups;
+
 @fragment
-fn f(@builtin(front_facing) v : bool, @builtin(sample_index) v_1 : u32, @builtin(sample_mask) v_2 : u32) {
+fn f(@builtin(front_facing) v : bool, @builtin(sample_index) v_1 : u32, @builtin(sample_mask) v_2 : u32, @builtin(subgroup_size) v_3 : u32) {
 }
 )");
 }
@@ -2657,96 +2658,6 @@ fn f() {
       b = (a + b);
     }
   }
-}
-)");
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// chromium_experimental_subgroups
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(IRToProgramTest, Enable_ChromiumExperimentalSubgroups_SubgroupBallot) {
-    auto* fn = b.Function("f", ty.void_());
-    b.Append(fn->Block(), [&] {
-        auto* call = b.CallWithResult<wgsl::ir::BuiltinCall>(
-            b.InstructionResult(ty.vec4<u32>()), wgsl::BuiltinFn::kSubgroupBallot, true);
-        b.Let("v", call);
-        b.Return(fn);
-    });
-
-    EXPECT_WGSL(R"(
-enable chromium_experimental_subgroups;
-
-fn f() {
-  let v = subgroupBallot(true);
-}
-)");
-}
-
-TEST_F(IRToProgramTest, Enable_ChromiumExperimentalSubgroups_SubgroupBroadcast) {
-    auto* fn = b.Function("f", ty.void_());
-    b.Append(fn->Block(), [&] {
-        auto* one = b.Value(1_u);
-        auto* call = b.CallWithResult<wgsl::ir::BuiltinCall>(
-            b.InstructionResult(ty.u32()), wgsl::BuiltinFn::kSubgroupBroadcast, Vector{one, one});
-        b.Let("v", call);
-        b.Return(fn);
-    });
-
-    EXPECT_WGSL(R"(
-enable chromium_experimental_subgroups;
-
-fn f() {
-  let v = subgroupBroadcast(1u, 1u);
-}
-)");
-}
-
-TEST_F(IRToProgramTest, Enable_ChromiumExperimentalSubgroups_StructBuiltin_SubgroupInvocationId) {
-    core::type::Manager::StructMemberDesc member;
-    member.name = mod.symbols.New("a");
-    member.type = ty.u32();
-    member.attributes.builtin = core::BuiltinValue::kSubgroupInvocationId;
-
-    auto* S = ty.Struct(mod.symbols.New("S"), {member});
-
-    auto* fn = b.Function("f", ty.void_());
-    fn->SetParams({b.FunctionParam(S)});
-    b.Append(fn->Block(), [&] { b.Return(fn); });
-
-    EXPECT_WGSL(R"(
-enable chromium_experimental_subgroups;
-
-struct S {
-  @builtin(subgroup_invocation_id)
-  a : u32,
-}
-
-fn f(v : S) {
-}
-)");
-}
-
-TEST_F(IRToProgramTest, Enable_ChromiumExperimentalSubgroups_StructBuiltin_SubgroupSize) {
-    core::type::Manager::StructMemberDesc member;
-    member.name = mod.symbols.New("a");
-    member.type = ty.u32();
-    member.attributes.builtin = core::BuiltinValue::kSubgroupSize;
-
-    auto* S = ty.Struct(mod.symbols.New("S"), {member});
-
-    auto* fn = b.Function("f", ty.void_());
-    fn->SetParams({b.FunctionParam(S)});
-    b.Append(fn->Block(), [&] { b.Return(fn); });
-
-    EXPECT_WGSL(R"(
-enable chromium_experimental_subgroups;
-
-struct S {
-  @builtin(subgroup_size)
-  a : u32,
-}
-
-fn f(v : S) {
 }
 )");
 }

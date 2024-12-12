@@ -31,7 +31,7 @@
 #include <unordered_map>
 
 #include "src/tint/api/common/binding_point.h"
-#include "src/tint/utils/reflection/reflection.h"
+#include "src/tint/utils/reflection.h"
 
 namespace tint::msl::writer {
 namespace binding {
@@ -141,6 +141,9 @@ struct Options {
     /// Set to `true` to disable workgroup memory zero initialization
     bool disable_workgroup_init = false;
 
+    /// Set to `true` to disable demote to helper transform
+    bool disable_demote_to_helper = false;
+
     /// Set to `true` to generate a [[point_size]] attribute which is set to 1.0
     /// for all vertex shaders in the module.
     bool emit_vertex_point_size = false;
@@ -170,6 +173,7 @@ struct Options {
     TINT_REFLECT(Options,
                  disable_robustness,
                  disable_workgroup_init,
+                 disable_demote_to_helper,
                  emit_vertex_point_size,
                  disable_polyfill_integer_div_mod,
                  buffer_size_ubo_index,

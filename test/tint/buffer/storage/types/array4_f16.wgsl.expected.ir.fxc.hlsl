@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 
 ByteAddressBuffer tint_symbol : register(t0);
@@ -50,5 +50,7 @@ void main() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x000001C7561B5A80(4,21-29): error X3000: unrecognized identifier 'float16_t'
+<scrubbed_path>(4,21-29): error X3000: unrecognized identifier 'float16_t'
 
+
+tint executable returned error: exit status 1

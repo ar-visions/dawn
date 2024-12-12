@@ -25,6 +25,8 @@
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#include <utility>
+
 #include "dawn/native/CommandBuffer.h"
 
 #include "dawn/common/BitSetIterator.h"
@@ -43,17 +45,16 @@ CommandBufferBase::CommandBufferBase(CommandEncoder* encoder,
     : ApiObjectBase(encoder->GetDevice(), descriptor->label),
       mCommands(encoder->AcquireCommands()),
       mResourceUsages(encoder->AcquireResourceUsages()),
+      mIndirectDrawMetadata(encoder->AcquireIndirectDrawMetadata()),
       mEncoderLabel(encoder->GetLabel()) {
     GetObjectTrackingList()->Track(this);
 }
 
-CommandBufferBase::CommandBufferBase(DeviceBase* device,
-                                     ObjectBase::ErrorTag tag,
-                                     const char* label)
+CommandBufferBase::CommandBufferBase(DeviceBase* device, ObjectBase::ErrorTag tag, StringView label)
     : ApiObjectBase(device, tag, label) {}
 
 // static
-Ref<CommandBufferBase> CommandBufferBase::MakeError(DeviceBase* device, const char* label) {
+Ref<CommandBufferBase> CommandBufferBase::MakeError(DeviceBase* device, StringView label) {
     return AcquireRef(new CommandBufferBase(device, ObjectBase::kError, label));
 }
 
@@ -91,12 +92,18 @@ MaybeError CommandBufferBase::ValidateCanUseInSubmitNow() const {
 }
 
 void CommandBufferBase::DestroyImpl() {
+    // These metadatas hold raw_ptr to the commands, so they need to be cleared first.
+    mIndirectDrawMetadata.clear();
     FreeCommands(&mCommands);
     mResourceUsages = {};
 }
 
 const CommandBufferResourceUsage& CommandBufferBase::GetResourceUsages() const {
     return mResourceUsages;
+}
+
+const std::vector<IndirectDrawMetadata>& CommandBufferBase::GetIndirectDrawMetadata() {
+    return mIndirectDrawMetadata;
 }
 
 CommandIterator* CommandBufferBase::GetCommandIteratorForTesting() {

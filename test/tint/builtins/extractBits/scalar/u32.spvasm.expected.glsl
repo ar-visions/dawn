@@ -1,25 +1,16 @@
 #version 310 es
 
-uint tint_extract_bits(uint v, uint offset, uint count) {
-  uint s = min(offset, 32u);
-  uint e = min(32u, (s + count));
-  return bitfieldExtract(v, int(s), int((e - s)));
-}
-
 void f_1() {
   uint v = 0u;
   uint offset_1 = 0u;
   uint count = 0u;
-  uint x_11 = tint_extract_bits(v, offset_1, count);
-  return;
+  uint v_1 = v;
+  uint v_2 = min(offset_1, 32u);
+  uint v_3 = min(count, (32u - v_2));
+  int v_4 = int(v_2);
+  uint x_11 = bitfieldExtract(v_1, v_4, int(v_3));
 }
-
-void f() {
-  f_1();
-}
-
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 void main() {
-  f();
-  return;
+  f_1();
 }

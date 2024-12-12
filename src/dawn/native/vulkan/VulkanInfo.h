@@ -65,11 +65,10 @@ struct VulkanDeviceKnobs {
     VkPhysicalDevice16BitStorageFeaturesKHR _16BitStorageFeatures;
     VkPhysicalDeviceSubgroupSizeControlFeaturesEXT subgroupSizeControlFeatures;
     VkPhysicalDeviceZeroInitializeWorkgroupMemoryFeaturesKHR zeroInitializeWorkgroupMemoryFeatures;
+    VkPhysicalDeviceShaderDemoteToHelperInvocationFeaturesEXT demoteToHelperInvocationFeatures;
     VkPhysicalDeviceShaderIntegerDotProductFeaturesKHR shaderIntegerDotProductFeatures;
     VkPhysicalDeviceDepthClipEnableFeaturesEXT depthClipEnableFeatures;
     VkPhysicalDeviceRobustness2FeaturesEXT robustness2Features;
-    VkPhysicalDeviceShaderSubgroupUniformControlFlowFeaturesKHR
-        shaderSubgroupUniformControlFlowFeatures;
     VkPhysicalDeviceSamplerYcbcrConversionFeatures samplerYCbCrConversionFeatures;
     VkPhysicalDeviceShaderSubgroupExtendedTypesFeaturesKHR shaderSubgroupExtendedTypes;
 

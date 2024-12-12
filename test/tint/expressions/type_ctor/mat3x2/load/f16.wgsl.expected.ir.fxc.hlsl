@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 
 RWByteAddressBuffer tint_symbol : register(u0);
@@ -15,6 +15,8 @@ void f() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x0000020800D36E00(3,28-36): error X3000: syntax error: unexpected token 'float16_t'
-c:\src\dawn\Shader@0x0000020800D36E00(4,3-19): error X3018: invalid subscript 'Store'
+<scrubbed_path>(3,28-36): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(4,3-19): error X3018: invalid subscript 'Store'
 
+
+tint executable returned error: exit status 1

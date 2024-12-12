@@ -34,20 +34,28 @@ void compute_main_inner(uint local_invocation_index_2, tint_module_vars_struct t
   (*tint_module_vars.wg).y = 0u;
   idx = local_invocation_index_2;
   {
+    uint2 tint_loop_idx = 0u;
     while(true) {
+      if (all((tint_loop_idx == uint2(4294967295u)))) {
+        break;
+      }
       if (!((idx < 10u))) {
         break;
       }
       uint const x_35 = idx;
-      atomic_store_explicit((&(*tint_module_vars.wg).a[x_35]), 0u, memory_order_relaxed);
+      atomic_store_explicit((&(*tint_module_vars.wg).a[min(x_35, 9u)]), 0u, memory_order_relaxed);
       {
+        uint const tint_low_inc = (tint_loop_idx.x + 1u);
+        tint_loop_idx.x = tint_low_inc;
+        uint const tint_carry = uint((tint_low_inc == 0u));
+        tint_loop_idx.y = (tint_loop_idx.y + tint_carry);
         idx = (idx + 1u);
       }
       continue;
     }
   }
   threadgroup_barrier(mem_flags::mem_threadgroup);
-  atomic_store_explicit((&(*tint_module_vars.wg).a[4]), 1u, memory_order_relaxed);
+  atomic_store_explicit((&(*tint_module_vars.wg).a[4u]), 1u, memory_order_relaxed);
 }
 
 void compute_main_1(tint_module_vars_struct tint_module_vars) {
@@ -56,7 +64,7 @@ void compute_main_1(tint_module_vars_struct tint_module_vars) {
 }
 
 void compute_main_inner_1(uint local_invocation_index_1_param, tint_module_vars_struct tint_module_vars) {
-  if ((local_invocation_index_1_param == 0u)) {
+  if ((local_invocation_index_1_param < 1u)) {
     (*tint_module_vars.wg).x = 0;
     (*tint_module_vars.wg).y = 0u;
   }

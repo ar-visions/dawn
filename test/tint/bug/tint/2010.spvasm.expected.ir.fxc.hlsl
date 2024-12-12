@@ -52,7 +52,7 @@ void main_1() {
   }
   GroupMemoryBarrierWithGroupSync();
   int x_74 = asint(x_58);
-  float2 x_76 = x_28[0].field0;
+  float2 x_76 = x_28[int(0)].field0;
   if ((x_52 == 0u)) {
     uint2 x_80 = asuint(x_76);
     uint x_81 = x_80[0u];
@@ -170,7 +170,9 @@ void main(main_inputs inputs) {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x0000022D8D60F2F0(130,3-66): error X3694: race condition writing to shared resource detected, consider making this write conditional.
-c:\src\dawn\Shader@0x0000022D8D60F2F0(162,3-10): error X3694: error location reached from this location
-c:\src\dawn\Shader@0x0000022D8D60F2F0(167,3-55): error X3694: error location reached from this location
+<scrubbed_path>(130,3-66): error X3694: race condition writing to shared resource detected, consider making this write conditional.
+<scrubbed_path>(162,3-10): error X3694: error location reached from this location
+<scrubbed_path>(167,3-55): error X3694: error location reached from this location
 
+
+tint executable returned error: exit status 1

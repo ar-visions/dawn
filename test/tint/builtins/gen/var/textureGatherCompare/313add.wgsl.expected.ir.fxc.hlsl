@@ -1,3 +1,43 @@
+//
+// fragment_main
+//
+
+RWByteAddressBuffer prevent_dce : register(u0);
+Texture2D arg_0 : register(t0, space1);
+SamplerComparisonState arg_1 : register(s1, space1);
+float4 textureGatherCompare_313add() {
+  float2 arg_2 = (1.0f).xx;
+  float arg_3 = 1.0f;
+  float4 res = arg_0.GatherCmp(arg_1, arg_2, arg_3, (int(1)).xx);
+  return res;
+}
+
+void fragment_main() {
+  prevent_dce.Store4(0u, asuint(textureGatherCompare_313add()));
+}
+
+//
+// compute_main
+//
+
+RWByteAddressBuffer prevent_dce : register(u0);
+Texture2D arg_0 : register(t0, space1);
+SamplerComparisonState arg_1 : register(s1, space1);
+float4 textureGatherCompare_313add() {
+  float2 arg_2 = (1.0f).xx;
+  float arg_3 = 1.0f;
+  float4 res = arg_0.GatherCmp(arg_1, arg_2, arg_3, (int(1)).xx);
+  return res;
+}
+
+[numthreads(1, 1, 1)]
+void compute_main() {
+  prevent_dce.Store4(0u, asuint(textureGatherCompare_313add()));
+}
+
+//
+// vertex_main
+//
 struct VertexOutput {
   float4 pos;
   float4 prevent_dce;
@@ -9,23 +49,13 @@ struct vertex_main_outputs {
 };
 
 
-RWByteAddressBuffer prevent_dce : register(u0);
 Texture2D arg_0 : register(t0, space1);
 SamplerComparisonState arg_1 : register(s1, space1);
 float4 textureGatherCompare_313add() {
   float2 arg_2 = (1.0f).xx;
   float arg_3 = 1.0f;
-  float4 res = arg_0.GatherCmp(arg_1, arg_2, arg_3, (1).xx);
+  float4 res = arg_0.GatherCmp(arg_1, arg_2, arg_3, (int(1)).xx);
   return res;
-}
-
-void fragment_main() {
-  prevent_dce.Store4(0u, asuint(textureGatherCompare_313add()));
-}
-
-[numthreads(1, 1, 1)]
-void compute_main() {
-  prevent_dce.Store4(0u, asuint(textureGatherCompare_313add()));
 }
 
 VertexOutput vertex_main_inner() {
@@ -38,9 +68,7 @@ VertexOutput vertex_main_inner() {
 
 vertex_main_outputs vertex_main() {
   VertexOutput v_1 = vertex_main_inner();
-  VertexOutput v_2 = v_1;
-  VertexOutput v_3 = v_1;
-  vertex_main_outputs v_4 = {v_3.prevent_dce, v_2.pos};
-  return v_4;
+  vertex_main_outputs v_2 = {v_1.prevent_dce, v_1.pos};
+  return v_2;
 }
 

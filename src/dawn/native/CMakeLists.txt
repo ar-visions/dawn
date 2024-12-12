@@ -495,6 +495,8 @@ if (DAWN_ENABLE_METAL)
         "metal/ComputePipelineMTL.h"
         "metal/DeviceMTL.h"
         "metal/Forward.h"
+        "metal/MultiDrawEncoder.h"
+        "metal/MultiDrawEncoder.mm"
         "metal/PhysicalDeviceMTL.h"
         "metal/PipelineLayoutMTL.h"
         "metal/QuerySetMTL.h"
@@ -609,6 +611,10 @@ if (DAWN_ENABLE_OPENGL)
         "opengl/RenderPipelineGL.h"
         "opengl/SamplerGL.h"
         "opengl/ShaderModuleGL.h"
+        "opengl/SharedFenceEGL.h"
+        "opengl/SharedFenceGL.h"
+        "opengl/SharedTextureMemoryEGL.h"
+        "opengl/SharedTextureMemoryGL.h"
         "opengl/SwapChainEGL.h"
         "opengl/TextureGL.h"
         "opengl/UtilsEGL.h"
@@ -638,6 +644,10 @@ if (DAWN_ENABLE_OPENGL)
         "opengl/RenderPipelineGL.cpp"
         "opengl/SamplerGL.cpp"
         "opengl/ShaderModuleGL.cpp"
+        "opengl/SharedFenceEGL.cpp"
+        "opengl/SharedFenceGL.cpp"
+        "opengl/SharedTextureMemoryEGL.cpp"
+        "opengl/SharedTextureMemoryGL.cpp"
         "opengl/SwapChainEGL.cpp"
         "opengl/TextureGL.cpp"
         "opengl/UtilsEGL.cpp"
@@ -657,7 +667,7 @@ if (DAWN_ENABLE_VULKAN)
         "vulkan/BindGroupVk.h"
         "vulkan/BufferVk.h"
         "vulkan/CommandBufferVk.h"
-        "vulkan/CommandRecordingContext.h"
+        "vulkan/CommandRecordingContextVk.h"
         "vulkan/ComputePipelineVk.h"
         "vulkan/DescriptorSetAllocation.h"
         "vulkan/DescriptorSetAllocator.h"
@@ -666,6 +676,7 @@ if (DAWN_ENABLE_VULKAN)
         "vulkan/FencedDeleter.h"
         "vulkan/Forward.h"
         "vulkan/PhysicalDeviceVk.h"
+        "vulkan/PipelineVk.h"
         "vulkan/PipelineCacheVk.h"
         "vulkan/PipelineLayoutVk.h"
         "vulkan/QuerySetVk.h"
@@ -682,6 +693,7 @@ if (DAWN_ENABLE_VULKAN)
         "vulkan/SharedTextureMemoryVk.h"
         "vulkan/SwapChainVk.h"
         "vulkan/TextureVk.h"
+        "vulkan/UniqueVkHandle.h"
         "vulkan/UtilsVulkan.h"
         "vulkan/VulkanError.h"
         "vulkan/VulkanExtensions.h"
@@ -700,10 +712,12 @@ if (DAWN_ENABLE_VULKAN)
         "vulkan/BufferVk.cpp"
         "vulkan/CommandBufferVk.cpp"
         "vulkan/ComputePipelineVk.cpp"
+        "vulkan/CommandRecordingContextVk.cpp"
         "vulkan/DescriptorSetAllocator.cpp"
         "vulkan/DeviceVk.cpp"
         "vulkan/FencedDeleter.cpp"
         "vulkan/PhysicalDeviceVk.cpp"
+        "vulkan/PipelineVk.cpp"
         "vulkan/PipelineCacheVk.cpp"
         "vulkan/PipelineLayoutVk.cpp"
         "vulkan/QuerySetVk.cpp"
@@ -845,16 +859,24 @@ endif()
 if (DAWN_ENABLE_D3D12)
     if (DAWN_USE_BUILT_DXC)
         target_compile_definitions(dawn_native PRIVATE "DAWN_USE_BUILT_DXC")
+        target_compile_definitions(dawn_native_objects PRIVATE "DAWN_USE_BUILT_DXC")
         add_dependencies(dawn_native copy_dxil_dll)
     endif()
 endif()
 
 if ((DAWN_ENABLE_OPENGL OR DAWN_ENABLE_VULKAN) AND DAWN_ENABLE_SPIRV_VALIDATION)
     target_compile_definitions(dawn_native PRIVATE "DAWN_ENABLE_SPIRV_VALIDATION")
+    target_compile_definitions(dawn_native_objects PRIVATE "DAWN_ENABLE_SPIRV_VALIDATION")
 endif()
 
 if (DAWN_ENABLE_SWIFTSHADER)
     target_compile_definitions(dawn_native PRIVATE "DAWN_ENABLE_SWIFTSHADER")
+    target_compile_definitions(dawn_native_objects PRIVATE "DAWN_ENABLE_SWIFTSHADER")
+endif()
+
+if (IOS)
+    target_compile_options(dawn_native_objects PRIVATE -fno-objc-arc)
+    target_compile_options(dawn_native PRIVATE -fno-objc-arc)
 endif()
 
 if (DAWN_BUILD_MONOLITHIC_LIBRARY)

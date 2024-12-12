@@ -55,7 +55,7 @@ const Vendor kVendors[] = {{"ATI", gpu_info::kVendorID_AMD},
                            {"Imagination", gpu_info::kVendorID_ImgTec},
                            {"Intel", gpu_info::kVendorID_Intel},
                            {"NVIDIA", gpu_info::kVendorID_Nvidia},
-                           {"Qualcomm", gpu_info::kVendorID_Qualcomm}};
+                           {"Qualcomm", gpu_info::kVendorID_Qualcomm_PCI}};
 
 uint32_t GetVendorIdFromVendors(const char* vendor) {
     uint32_t vendorId = 0;
@@ -87,6 +87,16 @@ uint32_t GetDeviceIdFromRender(std::string_view render) {
     }
 
     return deviceId;
+}
+
+bool IsANGLEDesktopGL(std::string renderer) {
+    return renderer.find("ANGLE") != std::string::npos &&
+           renderer.find("OpenGL") != std::string::npos &&
+           renderer.find("OpenGL ES") == std::string::npos;
+}
+
+bool IsSwiftShader(std::string renderer) {
+    return renderer.find("SwiftShader") != std::string::npos;
 }
 
 }  // anonymous namespace
@@ -151,15 +161,6 @@ MaybeError PhysicalDevice::InitializeImpl() {
 
     if (mFunctions.GetVersion().IsES()) {
         DAWN_ASSERT(GetBackendType() == wgpu::BackendType::OpenGLES);
-
-        // WebGPU requires being able to render to f16 and being able to blend f16
-        // which EXT_color_buffer_half_float provides.
-        DAWN_INVALID_IF(!mFunctions.IsGLExtensionSupported("GL_EXT_color_buffer_half_float"),
-                        "GL_EXT_color_buffer_half_float is required");
-
-        // WebGPU requires being able to render to f32 but does not require being able to blend f32
-        DAWN_INVALID_IF(!mFunctions.IsGLExtensionSupported("GL_EXT_color_buffer_float"),
-                        "GL_EXT_color_buffer_float is required");
     } else {
         DAWN_ASSERT(GetBackendType() == wgpu::BackendType::OpenGL);
     }
@@ -228,8 +229,28 @@ void PhysicalDevice::InitializeSupportedFeaturesImpl() {
         }
     }
 
+    if (mFunctions.IsGLExtensionSupported("GL_KHR_texture_compression_astc_ldr")) {
+        EnableFeature(Feature::TextureCompressionASTC);
+    }
+
+    // ETC2 is core in ES 3.0.
+    // However, ANGLE on Desktop GL does not support it.
+    if (mFunctions.IsAtLeastGLES(3, 0) && !IsANGLEDesktopGL(mName)) {
+        EnableFeature(Feature::TextureCompressionETC2);
+    }
+
     if (mDisplay->egl.HasExt(EGLExt::DisplayTextureShareGroup)) {
         EnableFeature(dawn::native::Feature::ANGLETextureSharing);
+    }
+
+    if (mDisplay->egl.HasExt(EGLExt::ImageNativeBuffer) &&
+        mDisplay->egl.HasExt(EGLExt::GetNativeClientBuffer)) {
+        EnableFeature(dawn::native::Feature::SharedTextureMemoryAHardwareBuffer);
+    }
+
+    if (mDisplay->egl.HasExt(EGLExt::NativeFenceSync) && mDisplay->egl.HasExt(EGLExt::WaitSync) &&
+        mFunctions.IsGLExtensionSupported("GL_OES_EGL_sync")) {
+        EnableFeature(dawn::native::Feature::SharedFenceSyncFD);
     }
 
     // Non-zero baseInstance requires at least desktop OpenGL 4.2, and it is not supported in
@@ -257,6 +278,11 @@ void PhysicalDevice::InitializeSupportedFeaturesImpl() {
         EnableFeature(Feature::Unorm16TextureFormats);
         EnableFeature(Feature::Snorm16TextureFormats);
         EnableFeature(Feature::Norm16TextureFormats);
+    }
+
+    // Float32Blendable
+    if (mFunctions.IsGLExtensionSupported("GL_EXT_float_blend")) {
+        EnableFeature(Feature::Float32Blendable);
     }
 }
 
@@ -316,7 +342,7 @@ MaybeError PhysicalDevice::InitializeSupportedLimitsImpl(CombinedLimits* limits)
     // TODO(dawn:685, dawn:1448): Support higher values as ANGLE compiler always generates
     // additional shader varyings (gl_PointSize and dx_Position) on ANGLE D3D backends.
     limits->v1.maxInterStageShaderComponents =
-        std::min(limits->v1.maxInterStageShaderComponents, kMaxInterStageShaderComponents);
+        std::min(limits->v1.maxInterStageShaderComponents, kMaxInterStageShaderVariables * 4);
     limits->v1.maxInterStageShaderVariables =
         std::min(limits->v1.maxInterStageShaderVariables, kMaxInterStageShaderVariables);
 
@@ -399,6 +425,11 @@ void PhysicalDevice::SetupBackendDeviceToggles(dawn::platform::Platform* platfor
 
     // Use T2B and B2T copies to emulate a T2T copy between sRGB and non-sRGB textures.
     deviceToggles->Default(Toggle::UseT2B2TForSRGBTextureCopy, true);
+
+    // Scale depth bias value by * 0.5 on certain GL drivers.
+    deviceToggles->Default(Toggle::GLDepthBiasModifier, gl.GetVersion().IsDesktop() ||
+                                                            IsANGLEDesktopGL(mName) ||
+                                                            IsSwiftShader(mName));
 }
 
 ResultOrError<Ref<DeviceBase>> PhysicalDevice::CreateDeviceImpl(
@@ -423,8 +454,8 @@ ResultOrError<Ref<DeviceBase>> PhysicalDevice::CreateDeviceImpl(
                           std::move(lostEvent));
 }
 
-bool PhysicalDevice::SupportsFeatureLevel(FeatureLevel featureLevel) const {
-    return featureLevel == FeatureLevel::Compatibility;
+bool PhysicalDevice::SupportsFeatureLevel(wgpu::FeatureLevel featureLevel) const {
+    return featureLevel == wgpu::FeatureLevel::Compatibility;
 }
 
 ResultOrError<PhysicalDeviceSurfaceCapabilities> PhysicalDevice::GetSurfaceCapabilities(
@@ -461,6 +492,6 @@ FeatureValidationResult PhysicalDevice::ValidateFeatureSupportedWithTogglesImpl(
     return {};
 }
 
-void PhysicalDevice::PopulateBackendProperties(UnpackedPtr<AdapterProperties>& properties) const {}
+void PhysicalDevice::PopulateBackendProperties(UnpackedPtr<AdapterInfo>& info) const {}
 
 }  // namespace dawn::native::opengl

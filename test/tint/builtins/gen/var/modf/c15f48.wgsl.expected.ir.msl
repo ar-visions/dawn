@@ -1,3 +1,42 @@
+//
+// fragment_main
+//
+#include <metal_stdlib>
+using namespace metal;
+
+struct modf_result_f32 {
+  float fract;
+  float whole;
+};
+
+void modf_c15f48() {
+  modf_result_f32 res = modf_result_f32{.fract=-0.5f, .whole=-1.0f};
+}
+
+fragment void fragment_main() {
+  modf_c15f48();
+}
+//
+// compute_main
+//
+#include <metal_stdlib>
+using namespace metal;
+
+struct modf_result_f32 {
+  float fract;
+  float whole;
+};
+
+void modf_c15f48() {
+  modf_result_f32 res = modf_result_f32{.fract=-0.5f, .whole=-1.0f};
+}
+
+kernel void compute_main() {
+  modf_c15f48();
+}
+//
+// vertex_main
+//
 #include <metal_stdlib>
 using namespace metal;
 
@@ -18,14 +57,6 @@ void modf_c15f48() {
   modf_result_f32 res = modf_result_f32{.fract=-0.5f, .whole=-1.0f};
 }
 
-fragment void fragment_main() {
-  modf_c15f48();
-}
-
-kernel void compute_main() {
-  modf_c15f48();
-}
-
 VertexOutput vertex_main_inner() {
   VertexOutput out = {};
   out.pos = float4(0.0f);
@@ -34,5 +65,7 @@ VertexOutput vertex_main_inner() {
 }
 
 vertex vertex_main_outputs vertex_main() {
-  return vertex_main_outputs{.VertexOutput_pos=vertex_main_inner().pos};
+  vertex_main_outputs tint_wrapper_result = {};
+  tint_wrapper_result.VertexOutput_pos = vertex_main_inner().pos;
+  return tint_wrapper_result;
 }

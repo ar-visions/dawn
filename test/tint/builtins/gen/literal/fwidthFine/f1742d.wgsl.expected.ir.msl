@@ -6,7 +6,8 @@ struct tint_module_vars_struct {
 };
 
 float fwidthFine_f1742d() {
-  float res = fwidth(1.0f);
+  float const v = dfdx(1.0f);
+  float res = (abs(v) + abs(dfdy(1.0f)));
   return res;
 }
 

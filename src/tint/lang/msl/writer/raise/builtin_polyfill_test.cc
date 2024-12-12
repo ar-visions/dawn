@@ -1022,211 +1022,6 @@ TEST_F(MslWriter_BuiltinPolyfillTest, Dot_MultipleCalls) {
     EXPECT_EQ(expect, str());
 }
 
-TEST_F(MslWriter_BuiltinPolyfillTest, Dot4I8Packed) {
-    auto* value0 = b.FunctionParam<u32>("value0");
-    auto* value1 = b.FunctionParam<u32>("value1");
-    auto* func = b.Function("foo", ty.i32());
-    func->SetParams({value0, value1});
-    b.Append(func->Block(), [&] {
-        auto* result = b.Call<i32>(core::BuiltinFn::kDot4I8Packed, value0, value1);
-        b.Return(func, result);
-    });
-
-    auto* src = R"(
-%foo = func(%value0:u32, %value1:u32):i32 {
-  $B1: {
-    %4:i32 = dot4I8Packed %value0, %value1
-    ret %4
-  }
-}
-)";
-    EXPECT_EQ(src, str());
-
-    auto* expect = R"(
-%foo = func(%value0:u32, %value1:u32):i32 {
-  $B1: {
-    %4:i32 = call %tint_packed_8bit_dot, %value0, %value1
-    ret %4
-  }
-}
-%tint_packed_8bit_dot = func(%lhs:u32, %rhs:u32):i32 {
-  $B2: {
-    %8:vec4<i8> = bitcast %lhs
-    %9:vec4<i8> = bitcast %rhs
-    %10:i8 = access %8, 0u
-    %11:i8 = access %9, 0u
-    %12:i8 = mul %10, %11
-    %13:i8 = access %8, 1u
-    %14:i8 = access %9, 1u
-    %15:i8 = mul %13, %14
-    %16:i8 = add %12, %15
-    %17:i8 = access %8, 2u
-    %18:i8 = access %9, 2u
-    %19:i8 = mul %17, %18
-    %20:i8 = add %16, %19
-    %21:i8 = access %8, 3u
-    %22:i8 = access %9, 3u
-    %23:i8 = mul %21, %22
-    %24:i8 = add %20, %23
-    %25:i32 = convert %24
-    ret %25
-  }
-}
-)";
-
-    capabilities.Add(core::ir::Capability::kAllow8BitIntegers);
-    Run(BuiltinPolyfill);
-
-    EXPECT_EQ(expect, str());
-}
-
-TEST_F(MslWriter_BuiltinPolyfillTest, Dot4U8Packed) {
-    auto* value0 = b.FunctionParam<u32>("value0");
-    auto* value1 = b.FunctionParam<u32>("value1");
-    auto* func = b.Function("foo", ty.u32());
-    func->SetParams({value0, value1});
-    b.Append(func->Block(), [&] {
-        auto* result = b.Call<u32>(core::BuiltinFn::kDot4U8Packed, value0, value1);
-        b.Return(func, result);
-    });
-
-    auto* src = R"(
-%foo = func(%value0:u32, %value1:u32):u32 {
-  $B1: {
-    %4:u32 = dot4U8Packed %value0, %value1
-    ret %4
-  }
-}
-)";
-    EXPECT_EQ(src, str());
-
-    auto* expect = R"(
-%foo = func(%value0:u32, %value1:u32):u32 {
-  $B1: {
-    %4:u32 = call %tint_packed_8bit_dot, %value0, %value1
-    ret %4
-  }
-}
-%tint_packed_8bit_dot = func(%lhs:u32, %rhs:u32):u32 {
-  $B2: {
-    %8:vec4<u8> = bitcast %lhs
-    %9:vec4<u8> = bitcast %rhs
-    %10:u8 = access %8, 0u
-    %11:u8 = access %9, 0u
-    %12:u8 = mul %10, %11
-    %13:u8 = access %8, 1u
-    %14:u8 = access %9, 1u
-    %15:u8 = mul %13, %14
-    %16:u8 = add %12, %15
-    %17:u8 = access %8, 2u
-    %18:u8 = access %9, 2u
-    %19:u8 = mul %17, %18
-    %20:u8 = add %16, %19
-    %21:u8 = access %8, 3u
-    %22:u8 = access %9, 3u
-    %23:u8 = mul %21, %22
-    %24:u8 = add %20, %23
-    %25:u32 = convert %24
-    ret %25
-  }
-}
-)";
-
-    capabilities.Add(core::ir::Capability::kAllow8BitIntegers);
-    Run(BuiltinPolyfill);
-
-    EXPECT_EQ(expect, str());
-}
-
-TEST_F(MslWriter_BuiltinPolyfillTest, Dot4x8Packed_MultipleCalls) {
-    auto* v = b.FunctionParam<u32>("v");
-    auto* func = b.Function("foo", ty.void_());
-    func->SetParams({v, v});
-    b.Append(func->Block(), [&] {
-        b.Call<i32>(core::BuiltinFn::kDot4I8Packed, v, v);
-        b.Call<i32>(core::BuiltinFn::kDot4I8Packed, v, v);
-        b.Call<u32>(core::BuiltinFn::kDot4U8Packed, v, v);
-        b.Call<u32>(core::BuiltinFn::kDot4U8Packed, v, v);
-        b.Return(func);
-    });
-
-    auto* src = R"(
-%foo = func(%v:u32%v:u32):void {
-  $B1: {
-    %3:i32 = dot4I8Packed %v, %v
-    %4:i32 = dot4I8Packed %v, %v
-    %5:u32 = dot4U8Packed %v, %v
-    %6:u32 = dot4U8Packed %v, %v
-    ret
-  }
-}
-)";
-    EXPECT_EQ(src, str());
-
-    auto* expect = R"(
-%foo = func(%v:u32%v:u32):void {
-  $B1: {
-    %3:i32 = call %tint_packed_8bit_dot, %v, %v
-    %5:i32 = call %tint_packed_8bit_dot, %v, %v
-    %6:u32 = call %tint_packed_8bit_dot_1, %v, %v
-    %8:u32 = call %tint_packed_8bit_dot_1, %v, %v
-    ret
-  }
-}
-%tint_packed_8bit_dot = func(%lhs:u32, %rhs:u32):i32 {
-  $B2: {
-    %11:vec4<i8> = bitcast %lhs
-    %12:vec4<i8> = bitcast %rhs
-    %13:i8 = access %11, 0u
-    %14:i8 = access %12, 0u
-    %15:i8 = mul %13, %14
-    %16:i8 = access %11, 1u
-    %17:i8 = access %12, 1u
-    %18:i8 = mul %16, %17
-    %19:i8 = add %15, %18
-    %20:i8 = access %11, 2u
-    %21:i8 = access %12, 2u
-    %22:i8 = mul %20, %21
-    %23:i8 = add %19, %22
-    %24:i8 = access %11, 3u
-    %25:i8 = access %12, 3u
-    %26:i8 = mul %24, %25
-    %27:i8 = add %23, %26
-    %28:i32 = convert %27
-    ret %28
-  }
-}
-%tint_packed_8bit_dot_1 = func(%lhs_1:u32, %rhs_1:u32):u32 {  # %tint_packed_8bit_dot_1: 'tint_packed_8bit_dot', %lhs_1: 'lhs', %rhs_1: 'rhs'
-  $B3: {
-    %31:vec4<u8> = bitcast %lhs_1
-    %32:vec4<u8> = bitcast %rhs_1
-    %33:u8 = access %31, 0u
-    %34:u8 = access %32, 0u
-    %35:u8 = mul %33, %34
-    %36:u8 = access %31, 1u
-    %37:u8 = access %32, 1u
-    %38:u8 = mul %36, %37
-    %39:u8 = add %35, %38
-    %40:u8 = access %31, 2u
-    %41:u8 = access %32, 2u
-    %42:u8 = mul %40, %41
-    %43:u8 = add %39, %42
-    %44:u8 = access %31, 3u
-    %45:u8 = access %32, 3u
-    %46:u8 = mul %44, %45
-    %47:u8 = add %43, %46
-    %48:u32 = convert %47
-    ret %48
-  }
-}
-)";
-
-    capabilities.Add(core::ir::Capability::kAllow8BitIntegers);
-    Run(BuiltinPolyfill);
-
-    EXPECT_EQ(expect, str());
-}
-
 TEST_F(MslWriter_BuiltinPolyfillTest, Frexp_Scalar) {
     auto* value = b.FunctionParam<f32>("value");
     auto* func = b.Function("foo", ty.f32());
@@ -2753,6 +2548,44 @@ TEST_F(MslWriter_BuiltinPolyfillTest, TextureSampleGrad_2d) {
     EXPECT_EQ(expect, str());
 }
 
+TEST_F(MslWriter_BuiltinPolyfillTest, TextureGather_2dArray) {
+    auto* t = b.FunctionParam(
+        "t", ty.Get<core::type::SampledTexture>(core::type::TextureDimension::k2dArray, ty.f32()));
+    auto* s = b.FunctionParam("s", ty.sampler());
+    auto* coords = b.FunctionParam("coords", ty.vec2<f32>());
+    auto* index = b.FunctionParam("index", ty.i32());
+    auto* func = b.Function("foo", ty.vec4<f32>());
+    func->SetParams({t, s, coords, index});
+    b.Append(func->Block(), [&] {
+        auto* result = b.Call<vec4<f32>>(core::BuiltinFn::kTextureGather, 0_u, t, s, coords, index);
+        b.Return(func, result);
+    });
+
+    auto* src = R"(
+%foo = func(%t:texture_2d_array<f32>, %s:sampler, %coords:vec2<f32>, %index:i32):vec4<f32> {
+  $B1: {
+    %6:vec4<f32> = textureGather 0u, %t, %s, %coords, %index
+    ret %6
+  }
+}
+)";
+    EXPECT_EQ(src, str());
+
+    auto* expect = R"(
+%foo = func(%t:texture_2d_array<f32>, %s:sampler, %coords:vec2<f32>, %index:i32):vec4<f32> {
+  $B1: {
+    %6:i32 = max %index, 0i
+    %7:vec4<f32> = %t.gather %s, %coords, %6, vec2<i32>(0i), 0u
+    ret %7
+  }
+}
+)";
+
+    Run(BuiltinPolyfill);
+
+    EXPECT_EQ(expect, str());
+}
+
 TEST_F(MslWriter_BuiltinPolyfillTest, TextureSampleGrad_2dArray) {
     auto* t = b.FunctionParam(
         "t", ty.Get<core::type::SampledTexture>(core::type::TextureDimension::k2dArray, ty.f32()));
@@ -2783,8 +2616,9 @@ TEST_F(MslWriter_BuiltinPolyfillTest, TextureSampleGrad_2dArray) {
 %foo = func(%t:texture_2d_array<f32>, %s:sampler, %coords:vec2<f32>, %index:i32, %ddx:vec2<f32>, %ddy:vec2<f32>):vec4<f32> {
   $B1: {
     %8:msl.gradient2d = construct %ddx, %ddy
-    %9:vec4<f32> = %t.sample %s, %coords, %index, %8
-    ret %9
+    %9:i32 = max %index, 0i
+    %10:vec4<f32> = %t.sample %s, %coords, %9, %8
+    ret %10
   }
 }
 )";
@@ -3320,16 +3154,14 @@ TEST_F(MslWriter_BuiltinPolyfillTest, TextureStoreToReadWriteBeforeLoad) {
 }
 
 TEST_F(MslWriter_BuiltinPolyfillTest, WorkgroupBarrier) {
-    auto* func = b.Function("foo", ty.void_());
-    func->SetStage(core::ir::Function::PipelineStage::kCompute);
-    func->SetWorkgroupSize(1, 1, 1);
+    auto* func = b.ComputeFunction("foo");
     b.Append(func->Block(), [&] {
         b.Call(ty.void_(), core::BuiltinFn::kWorkgroupBarrier);
         b.Return(func);
     });
 
     auto* src = R"(
-%foo = @compute @workgroup_size(1, 1, 1) func():void {
+%foo = @compute @workgroup_size(1u, 1u, 1u) func():void {
   $B1: {
     %2:void = workgroupBarrier
     ret
@@ -3339,7 +3171,7 @@ TEST_F(MslWriter_BuiltinPolyfillTest, WorkgroupBarrier) {
     EXPECT_EQ(src, str());
 
     auto* expect = R"(
-%foo = @compute @workgroup_size(1, 1, 1) func():void {
+%foo = @compute @workgroup_size(1u, 1u, 1u) func():void {
   $B1: {
     %2:void = msl.threadgroup_barrier 4u
     ret
@@ -3353,16 +3185,14 @@ TEST_F(MslWriter_BuiltinPolyfillTest, WorkgroupBarrier) {
 }
 
 TEST_F(MslWriter_BuiltinPolyfillTest, StorageBarrier) {
-    auto* func = b.Function("foo", ty.void_());
-    func->SetStage(core::ir::Function::PipelineStage::kCompute);
-    func->SetWorkgroupSize(1, 1, 1);
+    auto* func = b.ComputeFunction("foo");
     b.Append(func->Block(), [&] {
         b.Call(ty.void_(), core::BuiltinFn::kStorageBarrier);
         b.Return(func);
     });
 
     auto* src = R"(
-%foo = @compute @workgroup_size(1, 1, 1) func():void {
+%foo = @compute @workgroup_size(1u, 1u, 1u) func():void {
   $B1: {
     %2:void = storageBarrier
     ret
@@ -3372,7 +3202,7 @@ TEST_F(MslWriter_BuiltinPolyfillTest, StorageBarrier) {
     EXPECT_EQ(src, str());
 
     auto* expect = R"(
-%foo = @compute @workgroup_size(1, 1, 1) func():void {
+%foo = @compute @workgroup_size(1u, 1u, 1u) func():void {
   $B1: {
     %2:void = msl.threadgroup_barrier 1u
     ret
@@ -3386,16 +3216,14 @@ TEST_F(MslWriter_BuiltinPolyfillTest, StorageBarrier) {
 }
 
 TEST_F(MslWriter_BuiltinPolyfillTest, TextureBarrier) {
-    auto* func = b.Function("foo", ty.void_());
-    func->SetStage(core::ir::Function::PipelineStage::kCompute);
-    func->SetWorkgroupSize(1, 1, 1);
+    auto* func = b.ComputeFunction("foo");
     b.Append(func->Block(), [&] {
         b.Call(ty.void_(), core::BuiltinFn::kTextureBarrier);
         b.Return(func);
     });
 
     auto* src = R"(
-%foo = @compute @workgroup_size(1, 1, 1) func():void {
+%foo = @compute @workgroup_size(1u, 1u, 1u) func():void {
   $B1: {
     %2:void = textureBarrier
     ret
@@ -3405,7 +3233,7 @@ TEST_F(MslWriter_BuiltinPolyfillTest, TextureBarrier) {
     EXPECT_EQ(src, str());
 
     auto* expect = R"(
-%foo = @compute @workgroup_size(1, 1, 1) func():void {
+%foo = @compute @workgroup_size(1u, 1u, 1u) func():void {
   $B1: {
     %2:void = msl.threadgroup_barrier 2u
     ret

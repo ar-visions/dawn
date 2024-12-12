@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 
 cbuffer cbuffer_u : register(b0) {
@@ -29,10 +29,12 @@ void f() {
   matrix<float16_t, 4, 4> t = transpose(v_4(64u));
   float16_t l = length(tint_bitcast_to_f16(u[0u]).ywxz);
   float16_t a = abs(tint_bitcast_to_f16(u[0u]).ywxz[0u]);
-  float16_t v_8 = (t[0][0u] + float16_t(l));
+  float16_t v_8 = (t[int(0)][0u] + float16_t(l));
   s.Store<float16_t>(0u, (v_8 + float16_t(a)));
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x000001B415E6B5E0(6,8-16): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(6,8-16): error X3000: syntax error: unexpected token 'float16_t'
 
+
+tint executable returned error: exit status 1

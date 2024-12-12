@@ -44,14 +44,22 @@ namespace tint::core::ir {
 enum class Capability : uint8_t {
     /// Allows 8-bit integer types.
     kAllow8BitIntegers,
-    /// Allows access instructions to create pointers to vector elements.
-    kAllowVectorElementPointer,
-    /// Allows ref types
-    kAllowRefTypes,
+    /// Allows ClipDistances on f32 parameters
+    kAllowClipDistancesOnF32,
+    /// Allows handle vars to not have binding points
+    kAllowHandleVarsWithoutBindings,
     /// Allows module scoped lets
     kAllowModuleScopeLets,
+    /// Allow overrides
+    kAllowOverrides,
     /// Allows pointers inside structures.
     kAllowPointersInStructures,
+    /// Allows ref types
+    kAllowRefTypes,
+    /// Allows access instructions to create pointers to vector elements.
+    kAllowVectorElementPointer,
+    /// Allows private address space variables in function scopes.
+    kAllowPrivateVarsInFunctions,
 };
 
 /// Capabilities is a set of Capability

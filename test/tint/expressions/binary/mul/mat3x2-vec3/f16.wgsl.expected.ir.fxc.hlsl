@@ -1,4 +1,4 @@
-SKIP: FAILED
+SKIP: INVALID
 
 
 cbuffer cbuffer_data : register(b0) {
@@ -39,5 +39,7 @@ void main() {
 }
 
 FXC validation failure:
-c:\src\dawn\Shader@0x000001E386A14610(5,8-16): error X3000: syntax error: unexpected token 'float16_t'
+<scrubbed_path>(5,8-16): error X3000: syntax error: unexpected token 'float16_t'
 
+
+tint executable returned error: exit status 1
