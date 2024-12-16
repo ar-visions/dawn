@@ -593,6 +593,10 @@ Options:
                                  tint::ast::transform::DataMap& transform_inputs) {
     switch (options.format) {
         case Format::kMsl: {
+            if (options.use_ir) {
+                // Renaming is handled in the backend.
+                break;
+            }
             if (!options.rename_all) {
                 transform_inputs.Add<tint::ast::transform::Renamer::Config>(
                     tint::ast::transform::Renamer::Target::kMslKeywords);
@@ -601,15 +605,15 @@ Options:
             break;
         }
         case Format::kGlsl: {
-            if (!options.rename_all) {
-                transform_inputs.Add<tint::ast::transform::Renamer::Config>(
-                    tint::ast::transform::Renamer::Target::kGlslKeywords);
-            }
-            transform_manager.Add<tint::ast::transform::Renamer>();
+            // Renaming is handled in the backend.
             break;
         }
         case Format::kHlsl:
         case Format::kHlslFxc: {
+            if (options.use_ir) {
+                // Renaming is handled in the backend.
+                break;
+            }
             if (!options.rename_all) {
                 transform_inputs.Add<tint::ast::transform::Renamer::Config>(
                     tint::ast::transform::Renamer::Target::kHlslKeywords);
@@ -888,8 +892,12 @@ bool GenerateMsl([[maybe_unused]] Options& options,
         input_program = std::move(flattened.value());
     }
 
-    // TODO(jrprice): Provide a way for the user to set non-default options.
+    // Set up the backend options.
     tint::msl::writer::Options gen_options;
+    if (options.rename_all) {
+        gen_options.remapped_entry_point_name = "tint_entry_point";
+        gen_options.strip_all_names = true;
+    }
     gen_options.disable_robustness = !options.enable_robustness;
     gen_options.disable_workgroup_init = options.disable_workgroup_init;
     gen_options.pixel_local_attachments = options.pixel_local_attachments;
@@ -1002,8 +1010,12 @@ bool GenerateHlsl([[maybe_unused]] Options& options,
     }
 
     const bool for_fxc = options.format == Format::kHlslFxc;
-    // TODO(jrprice): Provide a way for the user to set non-default options.
+    // Set up the backend options.
     tint::hlsl::writer::Options gen_options;
+    if (options.rename_all) {
+        gen_options.remapped_entry_point_name = "tint_entry_point";
+        gen_options.strip_all_names = true;
+    }
     gen_options.disable_robustness = !options.enable_robustness;
     gen_options.disable_workgroup_init = options.disable_workgroup_init;
     gen_options.bindings = tint::hlsl::writer::GenerateBindings(res.Get());
@@ -1136,6 +1148,7 @@ bool GenerateGlsl([[maybe_unused]] Options& options,
     }
 
     tint::glsl::writer::Options gen_options;
+    gen_options.strip_all_names = options.rename_all;
     if (options.glsl_desktop) {
         gen_options.version =
             tint::glsl::writer::Version(tint::glsl::writer::Version::Standard::kDesktop, 4, 6);

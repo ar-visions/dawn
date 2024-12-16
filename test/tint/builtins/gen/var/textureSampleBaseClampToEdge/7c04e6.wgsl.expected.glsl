@@ -63,11 +63,11 @@ struct tint_ExternalTextureParams {
 };
 
 layout(binding = 0, std430)
-buffer prevent_dce_block_1_ssbo {
+buffer f_prevent_dce_block_ssbo {
   vec4 inner;
 } v_1;
 layout(binding = 3, std140)
-uniform arg_0_params_block_std140_1_ubo {
+uniform f_arg_0_params_block_std140_ubo {
   tint_ExternalTextureParams_std140 inner;
 } v_2;
 uniform highp sampler2D arg_0_plane0_arg_1;
@@ -293,12 +293,12 @@ struct VertexOutput {
 };
 
 layout(binding = 3, std140)
-uniform arg_0_params_block_std140_1_ubo {
+uniform v_arg_0_params_block_std140_ubo {
   tint_ExternalTextureParams_std140 inner;
 } v_1;
 uniform highp sampler2D arg_0_plane0_arg_1;
 uniform highp sampler2D arg_0_plane1_arg_1;
-layout(location = 0) flat out vec4 vertex_main_loc0_Output;
+layout(location = 0) flat out vec4 tint_interstage_location0;
 vec3 tint_GammaCorrection(vec3 v, tint_GammaTransferParams params) {
   vec3 v_2 = vec3(params.G);
   return mix((sign(v) * (pow(((params.A * abs(v)) + params.B), v_2) + params.E)), (sign(v) * ((params.C * abs(v)) + params.F)), lessThan(abs(v), vec3(params.D)));
@@ -337,16 +337,16 @@ vec4 textureSampleBaseClampToEdge_7c04e6() {
   return res;
 }
 VertexOutput vertex_main_inner() {
-  VertexOutput tint_symbol = VertexOutput(vec4(0.0f), vec4(0.0f));
-  tint_symbol.pos = vec4(0.0f);
-  tint_symbol.prevent_dce = textureSampleBaseClampToEdge_7c04e6();
-  return tint_symbol;
+  VertexOutput v_13 = VertexOutput(vec4(0.0f), vec4(0.0f));
+  v_13.pos = vec4(0.0f);
+  v_13.prevent_dce = textureSampleBaseClampToEdge_7c04e6();
+  return v_13;
 }
 void main() {
-  VertexOutput v_13 = vertex_main_inner();
-  gl_Position = v_13.pos;
+  VertexOutput v_14 = vertex_main_inner();
+  gl_Position = v_14.pos;
   gl_Position.y = -(gl_Position.y);
   gl_Position.z = ((2.0f * gl_Position.z) - gl_Position.w);
-  vertex_main_loc0_Output = v_13.prevent_dce;
+  tint_interstage_location0 = v_14.prevent_dce;
   gl_PointSize = 1.0f;
 }

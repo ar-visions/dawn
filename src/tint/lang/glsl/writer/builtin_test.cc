@@ -203,7 +203,7 @@ struct atomic_compare_exchange_result_i32 {
 };
 
 layout(binding = 0, std430)
-buffer v_block_1_ssbo {
+buffer f_v_block_ssbo {
   SB inner;
 } v_1;
 void main() {
@@ -236,7 +236,7 @@ struct atomic_compare_exchange_result_i32 {
 };
 
 layout(binding = 0, std430)
-buffer v_block_1_ssbo {
+buffer f_v_block_ssbo {
   int inner;
 } v_1;
 void main() {
@@ -889,7 +889,7 @@ struct TintTextureUniformData {
 };
 
 layout(binding = 0, std140)
-uniform tint_symbol_1_ubo {
+uniform f_tint_symbol_ubo {
   TintTextureUniformData inner;
 } v_1;
 uniform highp sampler2D v;
@@ -1453,7 +1453,7 @@ TEST_F(GlslWriterTest, BuiltinArrayLength) {
 precision highp int;
 
 layout(binding = 0, std430)
-buffer SB_1_ssbo {
+buffer f_SB_ssbo {
   uint b[];
 } v;
 void main() {
@@ -1560,15 +1560,15 @@ TEST_F(GlslWriterTest, Modf_Scalar) {
     EXPECT_EQ(output_.glsl, GlslHeader() + R"(
 
 struct modf_result_f32 {
-  float fract;
+  float member_0;
   float whole;
 };
 
 float foo(float value) {
   modf_result_f32 v = modf_result_f32(0.0f, 0.0f);
-  v.fract = modf(value, v.whole);
+  v.member_0 = modf(value, v.whole);
   modf_result_f32 v_1 = v;
-  return (v_1.fract + v_1.whole);
+  return (v_1.member_0 + v_1.whole);
 }
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 void main() {
@@ -1592,15 +1592,15 @@ TEST_F(GlslWriterTest, Modf_Vector) {
     EXPECT_EQ(output_.glsl, GlslHeader() + R"(
 
 struct modf_result_vec4_f32 {
-  vec4 fract;
+  vec4 member_0;
   vec4 whole;
 };
 
 vec4 foo(vec4 value) {
   modf_result_vec4_f32 v = modf_result_vec4_f32(vec4(0.0f), vec4(0.0f));
-  v.fract = modf(value, v.whole);
+  v.member_0 = modf(value, v.whole);
   modf_result_vec4_f32 v_1 = v;
-  return (v_1.fract + v_1.whole);
+  return (v_1.member_0 + v_1.whole);
 }
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 void main() {
@@ -1624,15 +1624,15 @@ TEST_F(GlslWriterTest, Frexp_Scalar) {
     EXPECT_EQ(output_.glsl, GlslHeader() + R"(
 
 struct frexp_result_f32 {
-  float fract;
-  int exp;
+  float member_0;
+  int member_1;
 };
 
 float foo(float value) {
   frexp_result_f32 v = frexp_result_f32(0.0f, 0);
-  v.fract = frexp(value, v.exp);
+  v.member_0 = frexp(value, v.member_1);
   frexp_result_f32 v_1 = v;
-  return (v_1.fract + float(v_1.exp));
+  return (v_1.member_0 + float(v_1.member_1));
 }
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 void main() {
@@ -1656,15 +1656,15 @@ TEST_F(GlslWriterTest, Frexp_Vector) {
     EXPECT_EQ(output_.glsl, GlslHeader() + R"(
 
 struct frexp_result_vec4_f32 {
-  vec4 fract;
-  ivec4 exp;
+  vec4 member_0;
+  ivec4 member_1;
 };
 
 vec4 foo(vec4 value) {
   frexp_result_vec4_f32 v = frexp_result_vec4_f32(vec4(0.0f), ivec4(0));
-  v.fract = frexp(value, v.exp);
+  v.member_0 = frexp(value, v.member_1);
   frexp_result_vec4_f32 v_1 = v;
-  return (v_1.fract + vec4(v_1.exp));
+  return (v_1.member_0 + vec4(v_1.member_1));
 }
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 void main() {

@@ -6,7 +6,7 @@ precision highp float;
 precision highp int;
 
 layout(binding = 0, std430)
-buffer prevent_dce_block_1_ssbo {
+buffer f_prevent_dce_block_ssbo {
   int inner;
 } v;
 int extractBits_249874() {
@@ -58,7 +58,7 @@ struct VertexOutput {
   int prevent_dce;
 };
 
-layout(location = 0) flat out int vertex_main_loc0_Output;
+layout(location = 0) flat out int tint_interstage_location0;
 int extractBits_249874() {
   int arg_0 = 1;
   uint arg_1 = 1u;
@@ -71,16 +71,16 @@ int extractBits_249874() {
   return res;
 }
 VertexOutput vertex_main_inner() {
-  VertexOutput tint_symbol = VertexOutput(vec4(0.0f), 0);
-  tint_symbol.pos = vec4(0.0f);
-  tint_symbol.prevent_dce = extractBits_249874();
-  return tint_symbol;
+  VertexOutput v_4 = VertexOutput(vec4(0.0f), 0);
+  v_4.pos = vec4(0.0f);
+  v_4.prevent_dce = extractBits_249874();
+  return v_4;
 }
 void main() {
-  VertexOutput v_4 = vertex_main_inner();
-  gl_Position = v_4.pos;
+  VertexOutput v_5 = vertex_main_inner();
+  gl_Position = v_5.pos;
   gl_Position.y = -(gl_Position.y);
   gl_Position.z = ((2.0f * gl_Position.z) - gl_Position.w);
-  vertex_main_loc0_Output = v_4.prevent_dce;
+  tint_interstage_location0 = v_5.prevent_dce;
   gl_PointSize = 1.0f;
 }

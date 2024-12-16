@@ -95,7 +95,6 @@ using InterstageLocationAndName = std::pair<uint32_t, std::string>;
     X(LimitsForCompilationRequest, limits)                                                       \
     X(bool, disableSymbolRenaming)                                                               \
     X(std::vector<InterstageLocationAndName>, interstageVariables)                               \
-    X(std::vector<std::string>, bufferBindingVariables)                                          \
     X(tint::glsl::writer::Options, tintOptions)                                                  \
     X(CacheKey::UnsafeUnkeyedValue<dawn::platform::Platform*>, platform)
 
@@ -329,12 +328,6 @@ std::pair<tint::glsl::writer::Bindings, BindingMap> GenerateBindingInfo(
                 std::get_if<BufferBindingInfo>(&shaderBindingInfo.bindingInfo);
 
             if (bufferBindingInfo) {
-                // For buffer bindings that can be shareable across stages, we need to rename them
-                // to avoid GL program link failures due to block naming issues.
-                if (stage != SingleShaderStage::Compute) {
-                    req.bufferBindingVariables.emplace_back(shaderBindingInfo.name);
-                }
-
                 switch (bufferBindingInfo->type) {
                     case wgpu::BufferBindingType::Uniform:
                         bindings.uniform.emplace(
@@ -484,7 +477,7 @@ ResultOrError<GLuint> ShaderModule::CompileShader(
         }
     }
 
-    req.disableSymbolRenaming = GetDevice()->IsToggleEnabled(Toggle::DisableSymbolRenaming);
+    req.tintOptions.strip_all_names = !GetDevice()->IsToggleEnabled(Toggle::DisableSymbolRenaming);
 
     req.interstageVariables = {};
     for (size_t i = 0; i < entryPointMetaData.interStageVariables.size(); i++) {
@@ -502,40 +495,11 @@ ResultOrError<GLuint> ShaderModule::CompileShader(
     DAWN_TRY_LOAD_OR_RUN(
         compilationResult, GetDevice(), std::move(req), GLSLCompilation::FromBlob,
         [](GLSLCompilationRequest r) -> ResultOrError<GLSLCompilation> {
-            constexpr char kRemappedEntryPointName[] = "dawn_entry_point";
             tint::ast::transform::Manager transformManager;
             tint::ast::transform::DataMap transformInputs;
 
             transformManager.Add<tint::ast::transform::SingleEntryPoint>();
             transformInputs.Add<tint::ast::transform::SingleEntryPoint::Config>(r.entryPointName);
-
-            {
-                tint::ast::transform::Renamer::Remappings assignedRenamings = {
-                    {r.entryPointName, kRemappedEntryPointName}};
-
-                // Give explicit renaming mappings for interstage variables
-                // Because GLSL requires interstage IO names to match.
-                for (const auto& it : r.interstageVariables) {
-                    assignedRenamings.emplace(
-                        it.second, "dawn_interstage_location_" + std::to_string(it.first));
-                }
-
-                // Prepend v_ or f_ to buffer binding variable names in order to avoid collisions in
-                // renamed interface blocks.
-                for (const auto& variableName : r.bufferBindingVariables) {
-                    assignedRenamings.emplace(
-                        variableName,
-                        (r.stage == SingleShaderStage::Vertex ? "v_" : "f_") + variableName);
-                }
-
-                // Needs to run early so that they can use builtin names safely.
-                // TODO(dawn:2180): move this transform into Tint.
-                transformManager.Add<tint::ast::transform::Renamer>();
-                transformInputs.Add<tint::ast::transform::Renamer::Config>(
-                    r.disableSymbolRenaming ? tint::ast::transform::Renamer::Target::kGlslKeywords
-                                            : tint::ast::transform::Renamer::Target::kAll,
-                    std::move(assignedRenamings));
-            }
 
             if (r.substituteOverrideConfig) {
                 // This needs to run after SingleEntryPoint transform which removes unused overrides
@@ -549,13 +513,6 @@ ResultOrError<GLuint> ShaderModule::CompileShader(
             tint::ast::transform::DataMap transformOutputs;
             DAWN_TRY_ASSIGN(program, RunTransforms(&transformManager, r.inputProgram,
                                                    transformInputs, &transformOutputs, nullptr));
-
-            if (r.stage == SingleShaderStage::Compute) {
-                // Validate workgroup size after program runs transforms.
-                Extent3D _;
-                DAWN_TRY_ASSIGN(_, ValidateComputeStageWorkgroupSize(
-                                       program, kRemappedEntryPointName, r.limits));
-            }
 
             // Intentionally assign entry point to empty to avoid a redundant 'SingleEntryPoint'
             // transform in Tint.
@@ -572,6 +529,17 @@ ResultOrError<GLuint> ShaderModule::CompileShader(
             auto result = tint::glsl::writer::Generate(ir.Get(), r.tintOptions, remappedEntryPoint);
             DAWN_INVALID_IF(result != tint::Success, "An error occurred while generating GLSL:\n%s",
                             result.Failure().reason.Str());
+
+            // Workgroup validation has to come after `Generate` because it may require overrides to
+            // have been substituted.
+            if (r.stage == SingleShaderStage::Compute) {
+                // Validate workgroup size after program runs transforms.
+                Extent3D _;
+                DAWN_TRY_ASSIGN(_, ValidateComputeStageWorkgroupSize(
+                                       result->workgroup_info.x, result->workgroup_info.y,
+                                       result->workgroup_info.z,
+                                       result->workgroup_info.storage_size, r.limits));
+            }
 
             return GLSLCompilation{{std::move(result->glsl)}};
         },

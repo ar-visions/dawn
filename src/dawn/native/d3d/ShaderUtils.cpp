@@ -218,14 +218,19 @@ MaybeError TranslateToHLSL(d3d::HlslCompilationRequest r,
     transformManager.Add<tint::ast::transform::SingleEntryPoint>();
     transformInputs.Add<tint::ast::transform::SingleEntryPoint::Config>(r.entryPointName.data());
 
-    // Needs to run before all other transforms so that they can use builtin names safely.
-    tint::ast::transform::Renamer::Remappings requestedNames = {
-        {std::string(r.entryPointName), kRemappedEntryPointName}};
-    transformManager.Add<tint::ast::transform::Renamer>();
-    transformInputs.Add<tint::ast::transform::Renamer::Config>(
-        r.disableSymbolRenaming ? tint::ast::transform::Renamer::Target::kHlslKeywords
-                                : tint::ast::transform::Renamer::Target::kAll,
-        std::move(requestedNames));
+    if (r.useTintIR) {
+        r.tintOptions.strip_all_names = !r.disableSymbolRenaming;
+        r.tintOptions.remapped_entry_point_name = kRemappedEntryPointName;
+    } else {
+        // Needs to run before all other transforms so that they can use builtin names safely.
+        tint::ast::transform::Renamer::Remappings requestedNames = {
+            {std::string(r.entryPointName), kRemappedEntryPointName}};
+        transformManager.Add<tint::ast::transform::Renamer>();
+        transformInputs.Add<tint::ast::transform::Renamer::Config>(
+            r.disableSymbolRenaming ? tint::ast::transform::Renamer::Target::kHlslKeywords
+                                    : tint::ast::transform::Renamer::Target::kAll,
+            std::move(requestedNames));
+    }
 
     if (r.stage == SingleShaderStage::Vertex) {
         transformManager.Add<tint::ast::transform::FirstIndexOffset>();
@@ -250,13 +255,6 @@ MaybeError TranslateToHLSL(d3d::HlslCompilationRequest r,
                                       &transformOutputs, nullptr));
     }
 
-    // Validate workgroup size after program runs transforms.
-    if (r.stage == SingleShaderStage::Compute) {
-        Extent3D _;
-        DAWN_TRY_ASSIGN(_, ValidateComputeStageWorkgroupSize(transformedProgram,
-                                                             kRemappedEntryPointName, r.limits));
-    }
-
     bool usesVertexIndex = false;
     bool usesInstanceIndex = false;
     if (r.stage == SingleShaderStage::Vertex) {
@@ -277,7 +275,25 @@ MaybeError TranslateToHLSL(d3d::HlslCompilationRequest r,
                         ir.Failure().reason.Str());
 
         result = tint::hlsl::writer::Generate(ir.Get(), r.tintOptions);
+
+        // Workgroup validation has to come after `Generate` because it may require overrides to
+        // have been substituted.
+        if (r.stage == SingleShaderStage::Compute) {
+            // Validate workgroup size and workgroup storage size.
+            Extent3D _;
+            DAWN_TRY_ASSIGN(
+                _, ValidateComputeStageWorkgroupSize(
+                       result->workgroup_info.x, result->workgroup_info.y, result->workgroup_info.z,
+                       result->workgroup_info.storage_size, r.limits));
+        }
     } else {
+        // Validate workgroup size after program runs transforms.
+        if (r.stage == SingleShaderStage::Compute) {
+            Extent3D _;
+            DAWN_TRY_ASSIGN(_, ValidateComputeStageWorkgroupSize(
+                                   transformedProgram, kRemappedEntryPointName, r.limits));
+        }
+
         result = tint::hlsl::writer::Generate(transformedProgram, r.tintOptions);
     }
 

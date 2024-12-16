@@ -103,7 +103,7 @@ deps = {
   },
 
   'third_party/depot_tools': {
-    'url': '{chromium_git}/chromium/tools/depot_tools.git@52d1357a95d702f822a41809d562cb92205fca80',
+    'url': '{chromium_git}/chromium/tools/depot_tools.git@9b4d1e485d37a44e3ebe73a06d21fc79c527ec96',
     'condition': 'dawn_standalone',
   },
 
@@ -274,12 +274,12 @@ deps = {
   },
 
   'third_party/angle': {
-    'url': '{chromium_git}/angle/angle@9481eb625b358897583f8adeca5fc520f8c215ae',
+    'url': '{chromium_git}/angle/angle@00d9ef8f182ca015ca6ec6a0fa4bd76512a9bca2',
     'condition': 'dawn_standalone',
   },
 
   'third_party/swiftshader': {
-    'url': '{swiftshader_git}/SwiftShader@7e54d43d6905f978ccf90680dd22a48b0ede8d8b',
+    'url': '{swiftshader_git}/SwiftShader@23b93c7cfe27e205e178a135a6ea24d1dcba1068',
     'condition': 'dawn_standalone',
   },
 

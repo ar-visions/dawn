@@ -6,11 +6,11 @@ precision highp float;
 precision highp int;
 
 layout(binding = 0, std430)
-buffer prevent_dce_block_1_ssbo {
+buffer f_prevent_dce_block_ssbo {
   uint inner;
 } v;
 layout(binding = 1, std430)
-buffer SB_RO_1_ssbo {
+buffer f_SB_RO_ssbo {
   float arg_0[];
 } sb_ro;
 uint arrayLength_a0f5ca() {
@@ -53,25 +53,25 @@ struct VertexOutput {
 };
 
 layout(binding = 1, std430)
-buffer SB_RO_1_ssbo {
+buffer v_SB_RO_ssbo {
   float arg_0[];
 } sb_ro;
-layout(location = 0) flat out uint vertex_main_loc0_Output;
+layout(location = 0) flat out uint tint_interstage_location0;
 uint arrayLength_a0f5ca() {
   uint res = uint(sb_ro.arg_0.length());
   return res;
 }
 VertexOutput vertex_main_inner() {
-  VertexOutput tint_symbol = VertexOutput(vec4(0.0f), 0u);
-  tint_symbol.pos = vec4(0.0f);
-  tint_symbol.prevent_dce = arrayLength_a0f5ca();
-  return tint_symbol;
+  VertexOutput v = VertexOutput(vec4(0.0f), 0u);
+  v.pos = vec4(0.0f);
+  v.prevent_dce = arrayLength_a0f5ca();
+  return v;
 }
 void main() {
-  VertexOutput v = vertex_main_inner();
-  gl_Position = v.pos;
+  VertexOutput v_1 = vertex_main_inner();
+  gl_Position = v_1.pos;
   gl_Position.y = -(gl_Position.y);
   gl_Position.z = ((2.0f * gl_Position.z) - gl_Position.w);
-  vertex_main_loc0_Output = v.prevent_dce;
+  tint_interstage_location0 = v_1.prevent_dce;
   gl_PointSize = 1.0f;
 }

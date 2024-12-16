@@ -6,7 +6,7 @@ precision highp float;
 precision highp int;
 
 layout(binding = 0, std430)
-buffer prevent_dce_block_1_ssbo {
+buffer f_prevent_dce_block_ssbo {
   ivec3 inner;
 } v;
 ivec3 countOneBits_65d2ae() {
@@ -46,23 +46,23 @@ struct VertexOutput {
   ivec3 prevent_dce;
 };
 
-layout(location = 0) flat out ivec3 vertex_main_loc0_Output;
+layout(location = 0) flat out ivec3 tint_interstage_location0;
 ivec3 countOneBits_65d2ae() {
   ivec3 arg_0 = ivec3(1);
   ivec3 res = ivec3(bitCount(arg_0));
   return res;
 }
 VertexOutput vertex_main_inner() {
-  VertexOutput tint_symbol = VertexOutput(vec4(0.0f), ivec3(0));
-  tint_symbol.pos = vec4(0.0f);
-  tint_symbol.prevent_dce = countOneBits_65d2ae();
-  return tint_symbol;
+  VertexOutput v = VertexOutput(vec4(0.0f), ivec3(0));
+  v.pos = vec4(0.0f);
+  v.prevent_dce = countOneBits_65d2ae();
+  return v;
 }
 void main() {
-  VertexOutput v = vertex_main_inner();
-  gl_Position = v.pos;
+  VertexOutput v_1 = vertex_main_inner();
+  gl_Position = v_1.pos;
   gl_Position.y = -(gl_Position.y);
   gl_Position.z = ((2.0f * gl_Position.z) - gl_Position.w);
-  vertex_main_loc0_Output = v.prevent_dce;
+  tint_interstage_location0 = v_1.prevent_dce;
   gl_PointSize = 1.0f;
 }
